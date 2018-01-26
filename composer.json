@@ -1,0 +1,36 @@
+{
+  "name": "bedezign/dchelper",
+  "description": "Helps you maintain docker-compose configurations for development purposes",
+  "keywords": [
+    "docker",
+    "docker-compose"
+  ],
+  "homepage": "http://github.com/bedezign/dchelper",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Steve Guns",
+      "email": "steve@bedezign.com"
+    }
+  ],
+  "require": {
+    "php": "^7.0",
+    "symfony/yaml": "^4.0",
+    "symfony/process": "^4.0",
+    "league/container": "^2.4",
+    "symfony/dotenv": "^4.0",
+    "monolog/monolog": "^1.23"
+  },
+  "autoload": {
+    "psr-4": {
+      "DCHelper\\": "src/DCHelper"
+    },
+    "files": [
+      "src/DCHelper/Tools/helpers.php"
+    ]
+  },
+  "bin": [
+    "bin/dchelper"
+  ]
+}

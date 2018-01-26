@@ -1,0 +1,150 @@
+#!/usr/bin/env php
+<?php
+require(__DIR__ . '/../vendor/autoload.php');
+
+setupDI();
+
+$commands = [];
+switch (di('arguments')[0] ?? '') {
+    case 'up' :
+        $commands = [
+            \DCHelper\Commands\RemoteIPs::class,
+            \DCHelper\Commands\DeProxy::class,
+            \DCHelper\Commands\Host::class,
+            \DCHelper\Commands\Up::class,
+            \DCHelper\Commands\Proxy::class,
+        ];
+        break;
+
+    case 'down':
+        $commands = [\DCHelper\Commands\Down::class, \DCHelper\Commands\DeProxy::class];
+        break;
+
+    case 'start' :
+        $commands = [\DCHelper\Commands\RemoteIPs::class, \DCHelper\Commands\Start::class];
+        break;
+
+    case 'proxy':
+        $commands = [\DCHelper\Commands\DeProxy::class, \DCHelper\Commands\Proxy::class];
+        break;
+}
+
+$runnable = [];
+foreach ($commands as $index => $class) {
+    /** @var \DCHelper\Commands\Command $command */
+    $command = new $class;
+    if ($command->shouldRun()) {
+        $runnable[] = $command;
+    }
+}
+$commands = $runnable;
+
+if (!$commands) {
+    // Nothing we recognize, pass on whatever commandline we got to docker-compose
+    ($command = new DCHelper\Tools\External\DockerCompose())->passthru(true)->run(implode(' ', array_slice($argv, 1)));
+    die($command->exit);
+}
+
+foreach ($commands as $command) {
+    $command->run();
+}
+
+
+function setupDI()
+{
+    $container = di();
+
+    $container->share('level', function() {
+        return in_array('--verbose', $_SERVER['argv']) ? 'debug' : 'info';
+    });
+
+    $container->share('log', function() {
+        $level   = di('level') === 'debug' ? \Monolog\Logger::DEBUG : \Monolog\Logger::INFO;
+        $handler = new \Monolog\Handler\StreamHandler("php://stdout", $level);
+        $handler->setFormatter(
+            new \Monolog\Formatter\LineFormatter("%message%", null, true, true)
+        );
+        return new Monolog\Logger('console', [$handler]);
+    });
+
+    $container->share('lo', 'lo0');
+
+    $container->share('sudo', function() { return trim(`which sudo`); });
+    $container->share('socat', function() { return trim(`which socat`); });
+    $container->share('ifconfig', function() { return trim(`which ifconfig`); });
+
+    $container->share('docker-compose', function() {
+        $binary = argOrEnv('compose', 'DOCKER_COMPOSE');
+        if (!$binary) {
+            $binary = trim(`which docker-compose`) ?? '/usr/local/bin/docker-compose';
+        }
+        return $binary;
+    });
+
+    $container->share('env', function() {
+        $file = getcwd() . '/.env';
+        if (is_readable($file)) {
+            (new Symfony\Component\Dotenv\Dotenv())->load($file);
+        }
+    });
+
+    $container->share('arguments', function() {
+        /**
+         * docker-compose does not enforce using an equal sign when specifying values for options.
+         * This basically f*s up the entire argument parsing process.
+         * This piece of code actually uses the docker-compose help screens to recognize value-options, commands etc
+         * and modifies the command line so it can be correctly interpreted.
+         */
+        static $busy = false;
+
+        if ($busy) {
+            // Prevent re-entry: Quickly return regularly parsed version.
+            // This can only happen when we are running this function, probably because we are resolving 'docker-compose'
+            // The only issue here is if the user specified --compose <path> instead of --compose=<path>, we'll miss that here
+            return \DCHelper\Tools\CommandLine::parseArgs($_SERVER['argv']);
+        }
+
+        $busy = true;
+
+        // Re-parse the arguments first, since docker compose likes to act annoying and doesn't use an equal sign
+        $arguments = array_slice($_SERVER['argv'], 1);
+
+        // Fetch possible global parameters
+        $options  = di('usage')->get('global.options');
+        $commands = di('usage')->get('global.commands');
+
+        $newArguments = [''];
+        while (count($arguments)) {
+            $value    = array_shift($arguments);
+            $noDashes = ltrim($value, '-');
+
+            if (array_key_exists($noDashes, $options)) {
+                // Global option. Question is: Does it have a value?
+                if ($options[$noDashes]) {
+                    // Yes: value is the next argument, specify as long since this has a value and 1 '-' is interpreted as toggle
+                    $newArguments[] = '--' . $noDashes . '=' . array_shift($arguments);
+                } else {
+                    // No, toggle
+                    $newArguments[] = $value;
+                }
+            } elseif (in_array($value, $commands)) {
+                // We've reached the command, add to arguments and toggle the options:
+                $newArguments[] = $value;
+                if (count($arguments)) {
+                    // Don't bother if we have nothing left
+                    $options = di('usage')->get($value . '.options');
+                }
+            } else {
+                // Probably a correctly specified option with =, just add
+                $newArguments[] = $value;
+            }
+        }
+
+        return \DCHelper\Tools\CommandLine::parseArgs($newArguments);
+    });
+
+    $container->share('usage', \DCHelper\Configurations\DockerComposeUsage::class);
+
+    $container->share('compose-config', \DCHelper\Configurations\DockerCompose::class);
+    $container->share('running-containers', \DCHelper\Configurations\RunningContainers::class);
+}
