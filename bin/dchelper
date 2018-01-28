@@ -1,6 +1,14 @@
 #!/usr/bin/env php
 <?php
-require(__DIR__ . '/../vendor/autoload.php');
+
+foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php'] as $file) {
+    if (is_readable($file)) {
+        require($file);
+    }
+}
+if (!class_exists('\DCHelper\Commands\Command')) {
+    die('It seems we are unable to locate the auto-loader.' . PHP_EOL);
+}
 
 setupDI();
 
@@ -44,7 +52,7 @@ switch (di('arguments')[0] ?? '') {
         if ($about) {
             // Add arguments and wrap in extra array
             $commands[] = [$about];
-            $commands = [$commands];
+            $commands   = [$commands];
         }
 
         break;
