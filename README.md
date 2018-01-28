@@ -25,17 +25,20 @@ After that you might want to setup an alias in your `.bashrc` file:
 alias docker-compose="php ~/.composer/bin/dchelper"
 ```
 
+
 It's as easy as that!
 
-If you always want to trigger it in `sudo` mode, you can just add `sudo` before it.
+If you always want to trigger it in `sudo` mode, you can just add `sudo` before it. That's not a requirement however, your password will be asked for when needed.
 
 ## What does it do?
 
 In short:
 
+ - Provides you with a "dedicated IP" for your project (instead of `127.0.0.1`)
  - Get rid of having to specify ports
- - Automatically create/maintain a hostname for your project
+ - Automatically create/maintain a hostname for your project. Use [myproject.test](myproject.test) in your browser instead of an IP!
  - Easily "shell" into a container.
+ - All of this via environment variables (`.env) or docker-compose.yml settings.
 
 
 ### Ports, ports, ports!

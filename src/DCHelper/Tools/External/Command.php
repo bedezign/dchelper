@@ -36,7 +36,10 @@ abstract class Command
     {
         $process = new Process($commandLine);
 
+        // If needed, request a TTY
         $process->setTty($this->tty);
+        // Disable timeout
+        $process->setTimeout(0);
 
         $callback = $this->passthru ? function($type, $data) {
             echo $data;

@@ -32,10 +32,12 @@ class Hosts extends Command
                 }
             }
             if (!$found) {
+                $hostFile = di('hosts');
+                info('Updating "' . $hostFile . '"...');
                 $hosts[] = $ip . "\t" . $hostname . PHP_EOL;
-                // Since we need sudo to be able to overwrite the hosts file, and PHP can't do that, abuse "the power of cat!"
+                // Since we need sudo to be able to overwrite the hosts file, and PHP can't do that, abuse "the power of tee!"
                 // @TODO perhaps we should create an alternate file first, verify and then replace the original?
-                (new Exec())->run(di('sudo') . " cat << 'EOF' > ". di('hosts') . PHP_EOL . implode('', $hosts) . PHP_EOL . 'EOF' . PHP_EOL);
+                (new Exec())->run(di('sudo') . " tee '$hostFile' <<'EOF'" . PHP_EOL . implode('', $hosts) . PHP_EOL . 'EOF' . PHP_EOL);
             }
         }
 
