@@ -2,17 +2,14 @@
 
 namespace DCHelper\Commands;
 
-use DCHelper\Configurations\Yaml;
 use DCHelper\Tools\External\Exec;
 
 class Shell extends Command
 {
     public function run(...$arguments): bool
     {
-        di('env');
-
         $container = $this->getContainer();
-        $command = array_get(di('arguments'), 'shell-cmd', ($env = getenv('COMPOSE_SHELL_CMD')) ? $env : 'bash -l');
+        $command = array_get(di('arguments'), 'shell-cmd', ($env = dcgetenv('COMPOSE_SHELL_CMD')) ? $env : 'bash -l');
         $title = $this->getTitle($container);
         $titleCMD = '';
         if ($title) {
@@ -68,8 +65,7 @@ class Shell extends Command
         }
 
         // Secondly, see if the environment specifies a container
-        di('env');
-        if ($container = getenv('COMPOSE_SHELL_DEFAULT')) {
+        if ($container = dcgetenv('COMPOSE_SHELL_DEFAULT')) {
             return $container;
         }
 
@@ -80,13 +76,7 @@ class Shell extends Command
             }
         }
 
-        // Last but least "pleasant" to do is to take the first specified service.
-        // We can't use the compose-config for that, because docker-compose changes the service order in how the containers have to be started,
-        // which is not always how they were defined. So we have to get the raw YAML version.
-        $file   = array_get($arguments, 'file', array_get($arguments, 'f', 'docker-compose.yml'));
-        $config = new Yaml('file://' . $file);
-
-        $services = $config->get('services');
+        $services = di('compose-config-raw')->get('services');
         return key($services);
     }
 
@@ -98,8 +88,7 @@ class Shell extends Command
         }
 
         // Global format specified?
-        di('env');
-        if ($format = getenv('COMPOSE_SHELL_TITLE')) {
+        if ($format = dcgetenv('COMPOSE_SHELL_TITLE')) {
             return str_replace('{CONTAINER}', $container, $format);
         }
 

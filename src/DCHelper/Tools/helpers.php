@@ -44,6 +44,17 @@ function array_get($value, $key = null, $default = null, $delimiter = '.')
 }
 
 /**
+ * Make sure to load the .env file first before calling getenv.
+ * @param string $varname
+ * @return array|false|string
+ */
+function dcgetenv($varname)
+{
+    di('env');
+    return getenv($varname);
+}
+
+/**
  * Checks both the arguments and the environment and returns the matching value, if any
  * @param string $argument
  * @param string $environment
@@ -51,9 +62,7 @@ function array_get($value, $key = null, $default = null, $delimiter = '.')
  */
 function argOrEnv($argument, $environment)
 {
-    di('env');
-    $arguments = di('arguments');
-    return $arguments[$argument] ?? getenv($environment);
+    return di('arguments')[$argument] ?? dcgetenv($environment);
 }
 
 /**

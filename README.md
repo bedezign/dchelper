@@ -38,8 +38,8 @@ In short:
  - Get rid of having to specify ports
  - Automatically create/maintain a hostname for your project. Use [myproject.test](myproject.test) in your browser instead of an IP!
  - Easily "shell" into a container (`docker-compose shell` and you have a login-shell into the default container).
+ - Built-in helpers for docker-compose v3.4 (or higher) configurations (just "envsubst" at this moment, suggestions welcome)
  - All of this via environment variables (`.env`) or docker-compose.yml settings.
-
 
 ### Ports, ports, ports!
 
@@ -182,3 +182,70 @@ If you have a terminal application that understands escape sequences (like iTerm
 You can either specify a title per service in the services environment using `SHELL_TITLE` or specify a global format via `COMPOSE_SHELL_TITLE`. In this case `{CONTAINER}` will be replaced by the containers' name.
 
 For example: `COMPOSE_SHELL_TITLE="${COMPOSE_HOSTNAME: {CONTAINER}"`. The hostname replacement will be taken care of by docker compose, the `{CONTAINER}` will be replace by DCHelper.
+
+## Helpers
+
+This only works if you use compose file format v3.4 or later.
+This is the first version that allows for (ignored) vendor-specific root entries (`x-...`) 
+
+You can specify a single command to run:
+```
+x-dchelper:
+  command:
+    configuration...
+```
+
+Or a set of multiple:
+
+```
+x-dchelper:
+  1:
+    command:
+      configuration...
+  2:
+    command   
+      configuration...
+```
+
+### EnvSubst
+
+If your compose project needs configuration files with values based on your environment, the trick so far was splice in an `envsubst` call somewhere
+that takes care of this for you. DCHelper supports this natively and in a simple manner.
+
+Note: This is internal functionality and does not require `envsubst` to be installed. 
+
+To generate a configuration file, you just add the `x-dchelper` root entry:
+
+```
+x-dchelper:
+  envsubst:
+    environment:
+      - .env
+      - nginx
+    files:
+      - /generic/template/folder/nginx/site-fpm.conf:./.docker/site.conf
+```
+
+#### environment
+
+What environments to use. The default (if not specified) is everything from `.env`.
+In the example it will use everything from `.env` and all environment from the *nginx* service.
+
+#### files
+
+List of files to do the replacement on. The source (or even target) files do not need to be in the project directory.
+
+This allows you to create a number of templates and then generate a per-project config whenever you run `docker-compose up`.
+
+By using the multiple commands syntax you can run `envsubst` multiple times if you want different environments.
+
+#### Result
+
+The `envsubst` helper runs before anything else, so the generated files are available in all your services:
+
+```
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./.docker/site.conf:/etc/nginx/conf.d/site.conf
+``` 

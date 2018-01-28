@@ -21,10 +21,10 @@ class DockerCompose extends Yaml
             foreach (array_get($configuration, 'services', []) as $name => $container) {
                 $configuration['services'][$name]['name'] = $name;
 
-                $ports = [];
+                $ports          = [];
                 $specifiedPorts = array_get($container, 'ports', []);
                 foreach ($specifiedPorts as $port) {
-                    $port = $this->parsePortBinding($port);
+                    $port                 = $this->parsePortBinding($port);
                     $ports[$port['name']] = $port;
                 }
                 $configuration['services'][$name]['ports'] = $ports;
@@ -36,22 +36,29 @@ class DockerCompose extends Yaml
 
     private function parsePortBinding($bind)
     {
-        $lastColon = strrpos($bind, ':');
-        $remoteIp = $remotePorts = null;
-        if ($lastColon !== false) {
-            // Remote and container part specified
-            $remote = explode(':', substr($bind, 0, $lastColon));
-            if (count($remote) === 2) {
-                $remoteIp    = reset($remote);
-                $remotePorts = end($remote);
-            } else {
-                $remotePorts = reset($remote);
+        $remoteIp = $remotePorts = $protocol = $containerPort = null;
+        if (\is_array($bind)) {
+            $remoteIp      = array_get($bind, 'external_ip');
+            $remotePorts   = array_get($bind, 'published');
+            $containerPort = array_get($bind, 'target');
+            $protocol = array_get($bind, 'protocol', 'tcp');
+        } else {
+            $lastColon = strrpos($bind, ':');
+            if ($lastColon !== false) {
+                // Remote and container part specified
+                $remote = explode(':', substr($bind, 0, $lastColon));
+                if (count($remote) === 2) {
+                    $remoteIp    = reset($remote);
+                    $remotePorts = end($remote);
+                } else {
+                    $remotePorts = reset($remote);
+                }
+
+                $bind = substr($bind, $lastColon + 1);
             }
 
-            $bind = substr($bind, $lastColon + 1);
+            list($containerPort, $protocol) = explode('/', $bind);
         }
-
-        list($containerPort, $protocol) = explode('/', $bind);
 
         return [
             'name'        => $containerPort . '/' . $protocol,

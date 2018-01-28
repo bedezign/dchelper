@@ -16,6 +16,7 @@ $commands = [];
 switch (di('arguments')[0] ?? '') {
     case 'up' :
         $commands = [
+            \DCHelper\Commands\Helpers::class,          // Run all helpers
             \DCHelper\Commands\RemoteIPs::class,        // Register IP aliases for services with remote ips
             \DCHelper\Commands\DeProxy::class,          // Cleanup old tcp tunnel processes
             \DCHelper\Commands\Hosts::class,            // See if we need to update the hosts file
@@ -196,7 +197,12 @@ function setupDI()
         return \DCHelper\Tools\CommandLine::parseArgs($newArguments);
     });
 
+    // Maps onto the docker-compose help texts
     $container->share('usage', \DCHelper\Configurations\DockerComposeUsage::class);
+    // docker-compose config after parsing
     $container->share('compose-config', \DCHelper\Configurations\DockerCompose::class);
+    // Raw docker-compose file, untouched (will still include vendor extensions - https://github.com/docker/cli/pull/452)
+    $container->share('compose-config-raw', \DCHelper\Configurations\DockerComposeRaw::class);
+    // Running containers, obtained via docker-compose ps
     $container->share('running-containers', \DCHelper\Configurations\RunningContainers::class);
 }
