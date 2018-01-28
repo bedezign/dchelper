@@ -4,13 +4,8 @@ namespace DCHelper\Commands;
 
 use DCHelper\Tools\External\Exec;
 
-class AliasIP implements Command
+class AliasIP extends Command
 {
-    public function shouldRun(...$arguments): bool
-    {
-        return true;
-    }
-
     public function run(...$arguments): bool
     {
         $existingIPs = $this->determineAliases();
@@ -23,17 +18,16 @@ class AliasIP implements Command
             }
         }
 
-        di()->share('aliased_ips', $existingIPs);
         return true;
     }
 
-    private function determineAliases()
+    public function determineAliases()
     {
         // Fetch all ipv4 IPs for the loopback interface (for now no IPv6 support, sorry)
         $output = (new Exec())->run(di('ifconfig') . ' ' . di('lo') . " | grep 'inet '");
         // Extract IPs from the text
         preg_match_all('/inet (.*) netmask/mi', $output, $ips);
 
-        return $ips ? $ips[1] : [];
+        return $ips ? array_slice($ips[1], 1) : [];
     }
 }

@@ -1,9 +1,13 @@
 {
   "name": "bedezign/dchelper",
-  "description": "Helps you maintain docker-compose configurations for development purposes",
+  "description": "Augment docker-compose with extra developer-friendly functionality",
   "keywords": [
     "docker",
-    "docker-compose"
+    "docker-compose",
+    "shell",
+    "port-forwarding",
+    "proxying",
+    "hostname"
   ],
   "homepage": "http://github.com/bedezign/dchelper",
   "type": "library",

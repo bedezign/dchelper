@@ -29,6 +29,7 @@ class RunningContainers extends Base
                 }
 
                 $containers[$name] = [
+                    'name'    => $name,
                     'command' => $command,
                     'status'  => $status,
                     'ports'   => $ports,

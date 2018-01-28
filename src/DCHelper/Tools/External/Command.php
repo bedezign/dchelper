@@ -8,10 +8,11 @@ abstract class Command
 {
     protected $mustRun  = true;
     protected $passthru = false;
+    protected $tty      = false;
     public    $exit;
     public    $output;
 
-    abstract public function run(...$arguments) : string;
+    abstract public function run(...$arguments): string;
 
     public function mustRun($status = true): self
     {
@@ -25,9 +26,17 @@ abstract class Command
         return $this;
     }
 
-    protected function _execute($commandLine) : string
+    public function tty($status = true): self
     {
-        $process  = new Process($commandLine);
+        $this->tty = $status;
+        return $this;
+    }
+
+    protected function _execute($commandLine): string
+    {
+        $process = new Process($commandLine);
+
+        $process->setTty($this->tty);
 
         $callback = $this->passthru ? function($type, $data) {
             echo $data;
@@ -35,7 +44,7 @@ abstract class Command
 
         $this->mustRun ? $process->mustRun($callback) : $process->run($callback);
 
-        $this->exit = $process->getExitCode();
+        $this->exit   = $process->getExitCode();
         $this->output = $process->getOutput();
         return $this->output;
     }

@@ -21,7 +21,8 @@ class DockerComposeUsage extends Base
 
     public function get($key = null, $default = null, $delimiter = '.')
     {
-        list($command, $section) = explode($delimiter, $key);
+        $parts = explode($delimiter, $key);
+        $command = reset($parts);
 
         if (!array_key_exists($command, $this->texts)) {
             // Don't use the DockerCompose tool, as that will try to fetch the global arguments, which calls this...
@@ -33,30 +34,39 @@ class DockerComposeUsage extends Base
             if ($command === 'global') {
                 $sections['commands'] = $this->processCommandsSection($sections['commands']);
             }
+            $sections['text'] = $text;
+
             $this->texts[$command] = $sections;
         }
 
-        return array_get($this->texts[$command], $section, $default, $delimiter);
+        if (count($parts) === 1) {
+            return $this->texts[$command];
+        }
+
+        return array_get($this->texts[$command], end($parts), $default, $delimiter) ?? [];
     }
 
     private function splitInSections($text)
     {
-        $sections = [];
+        $sections = ['offsets' => []];
         if (!is_array($text)) {
             $text = explode(PHP_EOL, $text);
         }
 
         $section = null;
+        $lineNumber = 0;
         while (count($text)) {
             $line = array_shift($text);
             if (substr($line, - 1) == ':') {
                 $section            = strtolower(substr($line, 0, - 1));
                 $sections[$section] = [];
+                $sections['offsets'][$section] = $lineNumber;
             } else {
                 if (($line = trim($line)) && $section) {
                     $sections[$section][] = $line;
                 }
             }
+            $lineNumber ++;
         }
         return $sections;
     }

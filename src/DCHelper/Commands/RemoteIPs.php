@@ -8,15 +8,10 @@ namespace DCHelper\Commands;
  *
  * Determines any remote-ips used and if needed, maps an aliased IP for it
  * If you wish to use this functionality, you have to make sure that your port mappings in the config file include IPs
- * DOCKER_ALIAS_IP in the .env file (or the environment) is also supported, but pretty useless if you aren't using it in your config.
+ * COMPOSE_ALIAS_IP in the .env file (or the environment) is also supported, but pretty useless if you aren't using it in your config.
  */
-class RemoteIPs implements Command
+class RemoteIPs extends Command
 {
-    public function shouldRun(...$arguments): bool
-    {
-        return true;
-    }
-
     public function run(...$arguments): bool
     {
         $remoteIPs = [];
@@ -35,7 +30,7 @@ class RemoteIPs implements Command
 
         // Since this is an IP alias what the system is concerned, use this as a name for the global as well
         di('env');
-        $remoteIPs[] = getenv('DOCKER_ALIAS_IP');
+        $remoteIPs[] = getenv('COMPOSE_ALIAS_IP');
         $remoteIPs = array_unique(array_filter($remoteIPs));
         if (count($remoteIPs)) {
             debug('Found: ' . implode(', ', $remoteIPs));
@@ -43,4 +38,15 @@ class RemoteIPs implements Command
 
         return (new AliasIP())->run(...$remoteIPs);
     }
+
+    public function help(): array
+    {
+        return [
+            'environment' => [
+                'COMPOSE_ALIAS_IP'   => 'Shortcut .env setting to use in your services\' port mapping if you want to specify the remote_ip. Also used for the hostname.'
+            ]
+        ];
+    }
+
+
 }

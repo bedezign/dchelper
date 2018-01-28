@@ -2,9 +2,18 @@
 
 namespace DCHelper\Commands;
 
-interface Command
+abstract class Command implements CommandInterface
 {
-    public function shouldRun(...$arguments) : bool;
+    /**
+     * Returns a list of the command line options applicable for this command
+     */
+    public function help(): array
+    {
+        return [];
+    }
 
-    public function run(...$arguments) : bool;
+    public function shouldRun(...$arguments): bool
+    {
+        return true;
+    }
 }

@@ -10,13 +10,8 @@ use DCHelper\Tools\External\Exec;
  *
  * Detects any proxied (socat) TCP port for this project from before and (attempts to) terminate(s) the process
  */
-class DeProxy implements Command
+class DeProxy extends Command
 {
-    public function shouldRun(...$arguments): bool
-    {
-        return true;
-    }
-
     public function run(...$arguments): bool
     {
         $proxiedIPs = $this->proxiedIPs();
@@ -59,13 +54,13 @@ class DeProxy implements Command
 
     /**
      * Parses both the environment and the docker config for proxied IP definitions
-     * Globally DOCKER_PROXY_IP can be used, per service PROXY_IP is supported in the environment section
+     * Globally COMPOSE_PROXY_IP can be used, per service PROXY_IP is supported in the environment section
      * @return array
      */
     protected function proxiedIPs(): array
     {
         di('env');
-        $proxied = [getenv('DOCKER_PROXY_IP')];
+        $proxied = [getenv('COMPOSE_PROXY_IP')];
 
         foreach (di('compose-config')->get('services') as $name => $config) {
             $proxied[] = array_get($config, 'environment.PROXY_IP');

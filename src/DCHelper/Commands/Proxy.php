@@ -10,10 +10,10 @@ class Proxy extends DeProxy
     {
         di('env');
 
-        $globalIP = getenv('DOCKER_PROXY_IP');
+        $globalIP = getenv('COMPOSE_PROXY_IP');
 
         info('Setting up tcp proxies');
-        foreach (di('running-containers') as $name => $configuration) {
+        foreach (di('compose-config')->get() as $name => $configuration) {
             // Fetch the PROXY_IP for the container
             $proxyIP = array_get($configuration, 'environment.PROXY_IP', $globalIP);
 
@@ -35,6 +35,19 @@ class Proxy extends DeProxy
         return true;
     }
 
+    public function help(): array
+    {
+        return [
+            'command' => 'proxy',
+            'description' => '(Automatically ran as part of "up") Set up tcp tunnels from the COMPOSE_PROXY_IP (or a per service PROXY_IP) to your services\' published ports.',
+            'environment' => [
+                'COMPOSE_PROXY_IP' => 'Default IP used to map the container ports to.',
+                'PROXY_IP'        => '(service) Proxy IP for that service, overrides COMPOSE_PROXY_IP',
+            ]
+        ];
+    }
+
+
     /**
      * Determines if there is a process that still has the connection to a previous socat tunnel open.
      * If a socat process is terminated while it had an active connection, it will leave the socket behind in a CLOSE_WAIT state
@@ -42,7 +55,7 @@ class Proxy extends DeProxy
      * Until that happens we cannot start a new socat instance on the port, unless it was started with reuseaddr
      *
      * @param string $ip
-     * @param int $port
+     * @param int    $port
      * @return bool
      */
     private function isPortFree($ip, $port): bool

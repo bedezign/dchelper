@@ -4,7 +4,7 @@
  * Returns the dependency injection container (or a concrete value from it if an argument was specified)
  * @param string|null  $alias
  * @param array ...$arguments
- * @return \League\Container\Container|mixed|null|object
+ * @return \League\Container\Container|mixed
  */
 function di($alias = null, ...$arguments)
 {

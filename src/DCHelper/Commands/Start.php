@@ -2,19 +2,10 @@
 
 namespace DCHelper\Commands;
 
-use DCHelper\Tools\External\DockerCompose;
-
-class Start implements Command
+class Start extends DockerCompose
 {
-    public function shouldRun(...$arguments): bool
-    {
-        return true;
-    }
-
     public function run(...$arguments): bool
     {
-        $arguments = assembleArguments('start');
-        ($command = new DockerCompose())->passthru()->run('start', $arguments);
-        return $command->exit === 0;
+        return parent::run('start');
     }
 }

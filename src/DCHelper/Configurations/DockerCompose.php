@@ -19,6 +19,8 @@ class DockerCompose extends Yaml
 
             // Parse port statements
             foreach (array_get($configuration, 'services', []) as $name => $container) {
+                $configuration['services'][$name]['name'] = $name;
+
                 $ports = [];
                 $specifiedPorts = array_get($container, 'ports', []);
                 foreach ($specifiedPorts as $port) {

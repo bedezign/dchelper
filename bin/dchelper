@@ -8,11 +8,11 @@ $commands = [];
 switch (di('arguments')[0] ?? '') {
     case 'up' :
         $commands = [
-            \DCHelper\Commands\RemoteIPs::class,
-            \DCHelper\Commands\DeProxy::class,
-            \DCHelper\Commands\Host::class,
-            \DCHelper\Commands\Up::class,
-            \DCHelper\Commands\Proxy::class,
+            \DCHelper\Commands\RemoteIPs::class,        // Register IP aliases for services with remote ips
+            \DCHelper\Commands\DeProxy::class,          // Cleanup old tcp tunnel processes
+            \DCHelper\Commands\Hosts::class,            // See if we need to update the hosts file
+            \DCHelper\Commands\Up::class,               // Pass control to docker-compose to "up" the project
+            \DCHelper\Commands\Proxy::class,            // Setup new tcp tunnel processes
         ];
         break;
 
@@ -24,29 +24,65 @@ switch (di('arguments')[0] ?? '') {
         $commands = [\DCHelper\Commands\RemoteIPs::class, \DCHelper\Commands\Start::class];
         break;
 
+    case 'hosts' :
+        $commands = [\DCHelper\Commands\Hosts::class];
+        break;
+
     case 'proxy':
         $commands = [\DCHelper\Commands\DeProxy::class, \DCHelper\Commands\Proxy::class];
         break;
+
+    case 'shell':
+        $commands = [\DCHelper\Commands\Shell::class];
+        break;
+
+    case 'help':
+        $commands = [\DCHelper\Commands\Help::class];
+
+        // Was a specific command requested?
+        $about = array_get(di('arguments'), 1);
+        if ($about) {
+            // Add arguments and wrap in extra array
+            $commands[] = [$about];
+            $commands = [$commands];
+        }
+
+        break;
 }
 
+// Determine which if the commands can run
 $runnable = [];
 foreach ($commands as $index => $class) {
-    /** @var \DCHelper\Commands\Command $command */
+    $arguments = [];
+    if (is_array($class)) {
+        list($class, $arguments) = $class;
+    }
+
+    /** @var \DCHelper\Commands\CommandInterface $command */
     $command = new $class;
     if ($command->shouldRun()) {
-        $runnable[] = $command;
+        $runnable[] = [$command, $arguments];
     }
 }
-$commands = $runnable;
 
+// Anything to do?
+$commands = $runnable;
 if (!$commands) {
+
+    if (count($argv) === 1) {
+        // Special case: no arguments shows the help, but ends with exit code 1
+        (new \DCHelper\Commands\Help())->run();
+        die(1);
+    }
+
     // Nothing we recognize, pass on whatever commandline we got to docker-compose
-    ($command = new DCHelper\Tools\External\DockerCompose())->passthru(true)->run(implode(' ', array_slice($argv, 1)));
+    ($command = new DCHelper\Tools\External\DockerCompose())->mustRun(false)->passthru(true)->run(implode(' ', array_slice($argv, 1)));
     die($command->exit);
 }
 
-foreach ($commands as $command) {
-    $command->run();
+// Actually perform all commands
+foreach ($commands as list($command, $arguments)) {
+    $command->run(...$arguments);
 }
 
 
@@ -72,9 +108,18 @@ function setupDI()
     $container->share('sudo', function() { return trim(`which sudo`); });
     $container->share('socat', function() { return trim(`which socat`); });
     $container->share('ifconfig', function() { return trim(`which ifconfig`); });
+    $container->share('hosts', '/etc/hosts');
+
+    $container->share('docker', function() {
+        $binary = argOrEnv('docker', 'DOCKER_BINARY');
+        if (!$binary) {
+            $binary = trim(`which docker`) ?? '/usr/local/bin/docker';
+        }
+        return $binary;
+    });
 
     $container->share('docker-compose', function() {
-        $binary = argOrEnv('compose', 'DOCKER_COMPOSE');
+        $binary = argOrEnv('compose', 'COMPOSE_BINARY');
         if (!$binary) {
             $binary = trim(`which docker-compose`) ?? '/usr/local/bin/docker-compose';
         }
@@ -99,11 +144,10 @@ function setupDI()
 
         if ($busy) {
             // Prevent re-entry: Quickly return regularly parsed version.
-            // This can only happen when we are running this function, probably because we are resolving 'docker-compose'
-            // The only issue here is if the user specified --compose <path> instead of --compose=<path>, we'll miss that here
+            // This can only happen while we are running this function, probably because we are resolving 'docker-compose'
+            // Unfortunately, if the user specified "--compose <path>" instead of "--compose=<path>", we'll miss that here
             return \DCHelper\Tools\CommandLine::parseArgs($_SERVER['argv']);
         }
-
         $busy = true;
 
         // Re-parse the arguments first, since docker compose likes to act annoying and doesn't use an equal sign
@@ -127,11 +171,12 @@ function setupDI()
                     // No, toggle
                     $newArguments[] = $value;
                 }
-            } elseif (in_array($value, $commands)) {
+            } elseif ($value !== 'help' && in_array($value, $commands)) {
                 // We've reached the command, add to arguments and toggle the options:
+                // (don't do this for help as we can ask for "help on help")
                 $newArguments[] = $value;
                 if (count($arguments)) {
-                    // Don't bother if we have nothing left
+                    // Don't bother if we have nothing left, but if we do, load the command-specific options
                     $options = di('usage')->get($value . '.options');
                 }
             } else {
@@ -144,7 +189,6 @@ function setupDI()
     });
 
     $container->share('usage', \DCHelper\Configurations\DockerComposeUsage::class);
-
     $container->share('compose-config', \DCHelper\Configurations\DockerCompose::class);
     $container->share('running-containers', \DCHelper\Configurations\RunningContainers::class);
 }
