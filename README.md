@@ -37,8 +37,8 @@ In short:
  - Provides you with a "dedicated IP" for your project (instead of `127.0.0.1`)
  - Get rid of having to specify ports
  - Automatically create/maintain a hostname for your project. Use [myproject.test](myproject.test) in your browser instead of an IP!
- - Easily "shell" into a container.
- - All of this via environment variables (`.env) or docker-compose.yml settings.
+ - Easily "shell" into a container (`docker-compose shell` and you have a login-shell into the default container).
+ - All of this via environment variables (`.env`) or docker-compose.yml settings.
 
 
 ### Ports, ports, ports!

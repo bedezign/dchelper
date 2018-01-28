@@ -12,8 +12,8 @@ class Proxy extends DeProxy
 
         $globalIP = getenv('COMPOSE_PROXY_IP');
 
-        info('Setting up tcp proxies');
-        foreach (di('compose-config')->get() as $name => $configuration) {
+        info('Setting up TCP Proxies');
+        foreach (di('running-containers')->get() as $name => $configuration) {
             // Fetch the PROXY_IP for the container
             $proxyIP = array_get($configuration, 'environment.PROXY_IP', $globalIP);
 
