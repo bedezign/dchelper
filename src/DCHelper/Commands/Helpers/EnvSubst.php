@@ -6,8 +6,12 @@ class EnvSubst
 {
     private $dotEnv;
 
-    public function run($configuration)
+    public function run($configuration, $stage = null)
     {
+        if ($stage && $stage !== 'pre.up') {
+            // If a stage was specified, we only run in pre.up
+            return true;
+        }
         $environment  = $this->assembleEnvironment($configuration);
         $replacements = $this->buildReplacements($environment);
         $files        = array_get($configuration, 'files');
@@ -27,27 +31,17 @@ class EnvSubst
         list($from, $to) = explode(':', $file, 2);
         $fileName = basename($to);
 
-        $fromAbsolute = realpath($from);
-        $toAbsolute   = realpath($toDir = \dirname($to));
-
-        if (!$fromAbsolute) {
-            error('envsubst: Source file "' . $from . '" does not exist.');
-            return false;
-        }
+        $fromAbsolute = absolute_path($from);
+        $toAbsolute   = absolute_path($toDir = dirname($to));
 
         if (!\is_readable($fromAbsolute)) {
-            error('envsubst: Unable to read from source file "' . $from . '".');
+            error('envsubst: Source file "' . $from . '" does not exist/cannot be read from.');
             return false;
         }
 
-        if (!$toAbsolute) {
-            // Directory doesn't exist, try to create
-            // https://github.com/kalessil/phpinspectionsea/blob/master/docs/probable-bugs.md#mkdir-race-condition
-            !is_dir($toDir) && !mkdir($toDir) && !is_dir($toDir);
-            $toAbsolute = realpath($toDir);
-        }
-
-        if (!$toAbsolute) {
+        // https://github.com/kalessil/phpinspectionsea/blob/master/docs/probable-bugs.md#mkdir-race-condition
+        !is_dir($toAbsolute) && !mkdir($toAbsolute, 0755, true);
+        if (!is_dir($toAbsolute)) {
             error('envsubst: Target directory "' . $toDir . '" does not exist and cannot be created. Please create it first.');
             return false;
         }
@@ -57,11 +51,17 @@ class EnvSubst
         $content = file_get_contents($fromAbsolute);
         foreach ($replacements as $function => $parameters) {
             $parameters[] = $content;
-            $content = $function(...$parameters);
+            $content      = $function(...$parameters);
         }
         return file_put_contents($toAbsolute . DIRECTORY_SEPARATOR . $fileName, $content);
     }
 
+    /**
+     * Assembles an set of environment variables to use for envsubst.
+     * @TODO "global" environment? custom values?
+     * @param $configuration
+     * @return array
+     */
     private function assembleEnvironment($configuration)
     {
         $values      = [];

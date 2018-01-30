@@ -41,6 +41,10 @@ In short:
  - Built-in helpers for docker-compose v3.4 (or higher) configurations (just "envsubst" at this moment, suggestions welcome)
  - All of this via environment variables (`.env`) or docker-compose.yml settings.
 
+Possible ideas:
+ - Run scripts within the container after it boots (optionally the first time only)
+ - create aliases
+ 
 ### Ports, ports, ports!
 
 When publishing a port from a container, by default the docker VM maps this onto your `localhost` (`127.0.0.1`).

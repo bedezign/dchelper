@@ -16,12 +16,13 @@ $commands = [];
 switch (di('arguments')[0] ?? '') {
     case 'up' :
         $commands = [
-            \DCHelper\Commands\Helpers::class,          // Run all helpers
-            \DCHelper\Commands\RemoteIPs::class,        // Register IP aliases for services with remote ips
-            \DCHelper\Commands\DeProxy::class,          // Cleanup old tcp tunnel processes
-            \DCHelper\Commands\Hosts::class,            // See if we need to update the hosts file
-            \DCHelper\Commands\Up::class,               // Pass control to docker-compose to "up" the project
-            \DCHelper\Commands\Proxy::class,            // Setup new tcp tunnel processes
+            [\DCHelper\Commands\Helpers::class, 'pre.up'],      // Run all helpers
+            \DCHelper\Commands\RemoteIPs::class,                // Register IP aliases for services with remote ips
+            \DCHelper\Commands\DeProxy::class,                  // Cleanup old tcp tunnel processes
+            \DCHelper\Commands\Hosts::class,                    // See if we need to update the hosts file
+            \DCHelper\Commands\Up::class,                       // Pass control to docker-compose to "up" the project
+            \DCHelper\Commands\Proxy::class,                    // Setup new tcp tunnel processes
+            [\DCHelper\Commands\Helpers::class, 'post.up'],     // Run all helpers
         ];
         break;
 
@@ -65,6 +66,9 @@ foreach ($commands as $index => $class) {
     $arguments = [];
     if (is_array($class)) {
         list($class, $arguments) = $class;
+        if (!is_array($arguments)) {
+            $arguments = [$arguments];
+        }
     }
 
     /** @var \DCHelper\Commands\CommandInterface $command */
@@ -91,7 +95,9 @@ if (!$commands) {
 
 // Actually perform all commands
 foreach ($commands as list($command, $arguments)) {
-    $command->run(...$arguments);
+    if (!$command->run(...$arguments)) {
+        die(1);
+    }
 }
 
 

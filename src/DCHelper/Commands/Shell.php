@@ -8,22 +8,17 @@ class Shell extends Command
 {
     public function run(...$arguments): bool
     {
-        $container = $this->getContainer();
+        $service = $this->getContainer();
         $command = array_get(di('arguments'), 'shell-cmd', ($env = dcgetenv('COMPOSE_SHELL_CMD')) ? $env : 'bash -l');
-        $title = $this->getTitle($container);
+        $title = $this->getTitle($service);
         $titleCMD = '';
         if ($title) {
             $titleCMD = 'echo "\033]0;' . $title . '\007" && ';
         }
 
-        // Since we need to trigger docker itself for this, we need the full container name
-        foreach(di('running-containers')->get() as $runningContainer) {
-            $name = array_get($runningContainer, 'name');
-            if (strpos($name, "_{$container}_") !== false) {
-                // This is the one, trigger the command in it, make sure to allow for a TTY etc, would be pretty useless otherwise
-                (new Exec())->passthru()->tty()->run($titleCMD . di('docker') . ' exec -ti ' . $name . ' ' . $command);
-                return true;
-            }
+        $container = containerFromService($service);
+        if ($container) {
+            (new Exec())->passthru()->tty()->run($titleCMD . di('docker') . ' exec -ti ' . $container . ' ' . $command);
         }
 
         return false;
@@ -55,7 +50,7 @@ class Shell extends Command
      * Determines the name of the service we should "shell" into
      * @return string
      */
-    private function getContainer(): string
+    private function getService(): string
     {
         $arguments = di('arguments');
 

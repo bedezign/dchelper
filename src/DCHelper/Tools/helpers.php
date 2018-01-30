@@ -2,8 +2,8 @@
 
 /**
  * Returns the dependency injection container (or a concrete value from it if an argument was specified)
- * @param string|null  $alias
- * @param array ...$arguments
+ * @param string|null $alias
+ * @param array       ...$arguments
  * @return \League\Container\Container|mixed
  */
 function di($alias = null, ...$arguments)
@@ -67,7 +67,7 @@ function argOrEnv($argument, $environment)
 
 /**
  * Re-assemble the docker-compose command line for the given command
- * @param string $type   Either global or the name of a docker-compose command
+ * @param string $type Either global or the name of a docker-compose command
  * @return string
  */
 function assembleArguments($type)
@@ -84,18 +84,63 @@ function assembleArguments($type)
             $name = (strlen($argument) === 1 ? '-' : '--') . $argument;
             if ($options[$argument]) {
                 $arguments[] = $name . ' ' . $value;
-            }
-            else {
+            } else {
                 $arguments[] = $name;
             }
-        }
-        elseif ($type !== 'global' && is_int($argument) && $value !== $type) {
+        } elseif ($type !== 'global' && is_int($argument) && $value !== $type) {
             // Raw parameter that isn't the command we're investigating, pass on
             $arguments[] = $value;
         }
     }
 
     return implode(' ', $arguments);
+}
+
+/**
+ * Like realpath, but doesn't care if the path exists or not.
+ * Path with starting "." or "~" will get $root/cwd or home prepended.
+ * Inspired by http://php.net/manual/en/function.realpath.php#84012
+ * @param string      $path
+ * @param null|string $root
+ * @return string
+ */
+function absolute_path($path, $root = null): string
+{
+    $split = function($path) {
+        $path = trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path));
+        return array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
+    };
+
+    $path      = trim($path);
+    $parts     = $split($path);
+    $firstChar = $path[0];
+    $absolutes = $firstChar === '.' ? $split($root ?? getcwd()) : ($firstChar == '~' ? $split($_SERVER['HOME']) : []);
+    foreach ($parts as $index => $part) {
+        if ('.' === $part || '~' === $part) {
+            continue;
+        }
+
+        if ('..' === $part) {
+            array_pop($absolutes);
+        } else {
+            $absolutes[] = $part;
+        }
+    }
+
+    return (strlen(ltrim($path, '\\/~.')) !== strlen($path) ? DIRECTORY_SEPARATOR : '') .
+        implode(DIRECTORY_SEPARATOR, $absolutes);
+}
+
+function containerFromService($serviceName)
+{
+    // Since we need to trigger docker itself for this, we need the full container name
+    foreach (di('running-containers')->get() as $runningContainer) {
+        $name = array_get($runningContainer, 'name');
+        if (strpos($name, "_{$serviceName}_") !== false) {
+            return $name;
+        }
+    }
+    return null;
 }
 
 function debug($message, $eol = true)
