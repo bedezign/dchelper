@@ -2,6 +2,8 @@
 
 namespace DCHelper\Commands\Helpers;
 
+use DCHelper\Tools\External\Docker;
+
 class EnvSubst
 {
     private $dotEnv;
@@ -15,34 +17,40 @@ class EnvSubst
         $environment  = $this->assembleEnvironment($configuration);
         $replacements = $this->buildReplacements($environment);
         $files        = array_get($configuration, 'files');
+        $root         = array_get($configuration, 'root');
         if (!\is_array($files)) {
             $files = [$files];
         }
         foreach ($files as $file) {
-            if (!$this->fileReplacement($file, $replacements)) {
+            if (!$this->fileReplacement($file, $replacements, $root)) {
                 return false;
             }
         }
         return true;
     }
 
-    private function fileReplacement($file, $replacements)
+    /**
+     * @param string $fileSpec
+     * @param array  $replacements
+     * @param string $root      Root directory for relative source entries
+     * @return bool|int
+     */
+    private function fileReplacement($fileSpec, $replacements, $root = null)
     {
-        list($from, $to) = explode(':', $file, 2);
+        list($from, $to) = explode(':', $fileSpec, 2);
         $fileName = basename($to);
 
-        $fromAbsolute = absolute_path($from);
+        $service = false;
+        if (strpos($to, ':') !== false) {
+            // If the "to" part contains another colon it specifies a path into a service and we need to threat this differently
+            list($service, $to) = explode(':', $to, 2);
+        }
+
+        $fromAbsolute = absolute_path($from, $root);
         $toAbsolute   = absolute_path($toDir = dirname($to));
 
         if (!\is_readable($fromAbsolute)) {
             error('envsubst: Source file "' . $from . '" does not exist/cannot be read from.');
-            return false;
-        }
-
-        // https://github.com/kalessil/phpinspectionsea/blob/master/docs/probable-bugs.md#mkdir-race-condition
-        !is_dir($toAbsolute) && !mkdir($toAbsolute, 0755, true);
-        if (!is_dir($toAbsolute)) {
-            error('envsubst: Target directory "' . $toDir . '" does not exist and cannot be created. Please create it first.');
             return false;
         }
 
@@ -52,6 +60,30 @@ class EnvSubst
         foreach ($replacements as $function => $parameters) {
             $parameters[] = $content;
             $content      = $function(...$parameters);
+        }
+
+        // Service name specified, the resulting configuration needs to go in the container.
+        // (usually for things that need to be added in the home folder etc)
+        if ($service) {
+            $temp = tempnam(sys_get_temp_dir(), 'dchelper');
+            if (!file_put_contents($temp, $content)) {
+                error('envsubst: Unable to create temporary file.');
+                return false;
+            }
+
+            $container = containerFromService($service);
+            $docker    = (new Docker())->passthru();
+            $docker->run('exec ' . $container . ' mkdir -p ' . $toDir);
+            $docker->run('cp ' . $temp . " $container:" . $to);
+            unlink($temp);
+            return true;
+        }
+
+        // https://github.com/kalessil/phpinspectionsea/blob/master/docs/probable-bugs.md#mkdir-race-condition
+        !is_dir($toAbsolute) && !mkdir($toAbsolute, 0755, true);
+        if (!is_dir($toAbsolute)) {
+            error('envsubst: Target directory "' . $toDir . '" does not exist and cannot be created. Please create it first.');
+            return false;
         }
         return file_put_contents($toAbsolute . DIRECTORY_SEPARATOR . $fileName, $content);
     }

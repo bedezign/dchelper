@@ -98,7 +98,7 @@ function assembleArguments($type)
 
 /**
  * Like realpath, but doesn't care if the path exists or not.
- * Path with starting "." or "~" will get $root/cwd or home prepended.
+ * It will expand "~" references as well.
  * Inspired by http://php.net/manual/en/function.realpath.php#84012
  * @param string      $path
  * @param null|string $root
@@ -106,29 +106,39 @@ function assembleArguments($type)
  */
 function absolute_path($path, $root = null): string
 {
-    $split = function($path) {
+    $isRelative = function($path) { return strpos('~.', $path[0]) !== false || strpos("\\/", $path[0]) === false; };
+    $split      = function($path) {
         $path = trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path));
-        return array_filter(explode(DIRECTORY_SEPARATOR, $path), 'strlen');
+        return explode(DIRECTORY_SEPARATOR, $path);
     };
 
-    $path      = trim($path);
+    if ($root && $isRelative($root)) {
+        $root = absolute_path($root);
+    }
+
     $parts     = $split($path);
-    $firstChar = $path[0];
-    $absolutes = $firstChar === '.' ? $split($root ?? getcwd()) : ($firstChar == '~' ? $split($_SERVER['HOME']) : []);
+    $firstPart = reset($parts);
+    // If a path was absolute, the first part will be empty
+    $directory = array_filter($split(
+        // If the path was relative to the home folder, use HOME
+        $firstPart == '~' ? $_SERVER['HOME'] :
+            // Else, if the part was relative (. or !empty - not a directory separator) use the specified root (or workdir).
+            ($firstPart == '.' || !empty($firstPart) ? ($root ?? getcwd()) : '')
+    ));
+
     foreach ($parts as $index => $part) {
-        if ('.' === $part || '~' === $part) {
+        if (!$part || '.' === $part || '~' === $part) {
             continue;
         }
 
         if ('..' === $part) {
-            array_pop($absolutes);
+            array_pop($directory);
         } else {
-            $absolutes[] = $part;
+            $directory[] = $part;
         }
     }
 
-    return (strlen(ltrim($path, '\\/~.')) !== strlen($path) ? DIRECTORY_SEPARATOR : '') .
-        implode(DIRECTORY_SEPARATOR, $absolutes);
+    return DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $directory);
 }
 
 function containerFromService($serviceName)

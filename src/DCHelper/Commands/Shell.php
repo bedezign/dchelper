@@ -2,7 +2,7 @@
 
 namespace DCHelper\Commands;
 
-use DCHelper\Tools\External\Exec;
+use DCHelper\Tools\External\Docker;
 
 class Shell extends Command
 {
@@ -18,7 +18,7 @@ class Shell extends Command
 
         $container = containerFromService($service);
         if ($container) {
-            (new Exec())->passthru()->tty()->run($titleCMD . di('docker') . ' exec -ti ' . $container . ' ' . $command);
+            (new Docker())->passthru()->tty()->run('exec -ti ' . $container . ' ' . $command);
         }
 
         return false;

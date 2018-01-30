@@ -3,8 +3,7 @@
 namespace DCHelper\Commands\Helpers;
 
 
-use DCHelper\Tools\External\DockerCompose;
-use DCHelper\Tools\External\Exec;
+use DCHelper\Tools\External\Docker;
 
 class ScriptRunner
 {
@@ -28,9 +27,6 @@ class ScriptRunner
         }
 
         $root = array_get($configuration, 'root', '');
-        if ($root && substr($root, - 1) !== DIRECTORY_SEPARATOR) {
-            $root .= DIRECTORY_SEPARATOR;
-        }
 
         $service = array_get($configuration, 'service');
         if (!$service) {
@@ -40,7 +36,7 @@ class ScriptRunner
 
         $once = !is_array($once) ? [$once] : $once;
         foreach ($once as $script) {
-            if (!$this->runScript($service, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($root . $script) : $script)) {
+            if (!$this->runScript($service, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script)) {
                 return false;
             }
         }
@@ -60,7 +56,7 @@ class ScriptRunner
         // We run the script as a heredoc in the container so that we don't need to figure out whether the script
         // is available within the container or not. This approach works for both
         // Note: Because of "docker-compose exec" woes with stdin (https://github.com/docker/compose/issues/3352), use docker instead
-        (new Exec())->passthru()->run(di('docker') . ' exec -i ' . $container . ' /bin/sh <<\EOB' . PHP_EOL . $contents . PHP_EOL . 'EOB' . PHP_EOL);
+        (new Docker())->passthru()->run('exec -i ' . $container . ' /bin/sh <<\EOB' . PHP_EOL . $contents . PHP_EOL . 'EOB' . PHP_EOL);
         return true;
     }
 

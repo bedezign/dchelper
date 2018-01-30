@@ -18,16 +18,18 @@ class Helpers extends Command
             return true;
         }
 
-        // We support a mix of numeric entries (in case you want to use a command more than once) and regular command entries, normalize this first
-        if (!is_numeric(key($helpers))) {
-            $helpers = array_map(function($helper, $key) {
-                return is_numeric($key) ? $helper : [$key => $helper];
-            }, $helpers, array_keys($helpers));
-        }
-
-        foreach ($helpers as $helper) {
-            if (!$this->triggerHelper(key($helper), reset($helper), $arguments)) {
-                return false;
+        $root = null;
+        foreach ($helpers as $helper => $configuration) {
+            $helper = explode('.', $helper)[0];
+            if ($helper === 'root') {
+                $root = $configuration;
+            }
+            else {
+                // root override if needed
+                $configuration['root'] = array_get($configuration, 'root', $root);
+                if (!$this->triggerHelper($helper, $configuration, $arguments)) {
+                    return false;
+                }
             }
         }
 
