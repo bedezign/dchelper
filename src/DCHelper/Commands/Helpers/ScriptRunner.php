@@ -33,26 +33,48 @@ class ScriptRunner
             error('scriptrunner: Please specify a service to run against');
             return false;
         }
+        $container = containerFromService($service);
+
+        // Obtain the script lock file first
+        $temp = tempnam(sys_get_temp_dir(), 'dchelper');
+        $alreadyRan = [];
+        $docker = (new Docker())->mustRun(false);
+        $docker->run("cp $container:$lockFile $temp");
+        if ($docker->exit === 0) {
+            $alreadyRan = array_map('trim', file($temp));
+        }
 
         $once = !is_array($once) ? [$once] : $once;
+        $executed = 0;
         foreach ($once as $script) {
-            if (!$this->runScript($service, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script)) {
-                return false;
+            if (!in_array($script, $alreadyRan)) {
+                info('scriptrunner: Executing "' . $script . '" in "' . $service . '".');
+                if (!$this->runScript($container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script)) {
+                    return false;
+                }
+                $alreadyRan[] = $script;
+                $executed ++;
             }
         }
+
+        // Put the script file back for next time:
+        if ($executed) {
+            file_put_contents($temp, implode(PHP_EOL, $alreadyRan));
+            $docker->mustRun()->run("cp $temp $container:$lockFile");
+        }
+        @unlink($temp);
+
         return true;
     }
 
-    private function runScript($service, $script)
+    private function runScript($container, $script)
     {
         if (!is_readable($script)) {
             error('scriptrunner: Script "' . $script . '" could not be read.');
             return false;
         }
         $contents  = file_get_contents($script);
-        $container = containerFromService($service);
 
-        info('scriptrunner: Executing "' . $script . '" in "' . $service . '".');
         // We run the script as a heredoc in the container so that we don't need to figure out whether the script
         // is available within the container or not. This approach works for both
         // Note: Because of "docker-compose exec" woes with stdin (https://github.com/docker/compose/issues/3352), use docker instead
