@@ -2,7 +2,7 @@
 
 **(STILL IN DEVELOPMENT, use at your own risk)**
 
-> Please note that most functionality in this helper **only works on macOS**.
+> Please note that the network related functionality in this helper (alias/proxy) **only works on macOS**.
 I'm really sorry about that. I would love to help Windows people as well,
 but fact is that it simply does not support most of the required functionality.
 
@@ -25,10 +25,13 @@ After that you might want to setup an alias in your `.bashrc` file:
 alias docker-compose="php ~/.composer/bin/dchelper"
 ```
 
-
 It's as easy as that!
 
-If you always want to trigger it in `sudo` mode, you can just add `sudo` before it. That's not a requirement however, your password will be asked for when needed.
+## Notes
+
+- Currently `dchelper` assumes that there will be "one of each service". 
+  It is mainly for development purposes and until someone requests support for multiple containers per service I'm not going to think about the added complexity. 
+- Mapping IP & Hostname is currently for the first found IP only (with a preference for aliased instead of proxied).
 
 ## What does it do?
 
@@ -38,12 +41,8 @@ In short:
  - Get rid of having to specify ports
  - Automatically create/maintain a hostname for your project. Use [myproject.test](myproject.test) in your browser instead of an IP!
  - Easily "shell" into a container (`docker-compose shell` and you have a login-shell into the default container).
- - Built-in helpers for docker-compose v3.4 (or higher) configurations (just "envsubst" at this moment, suggestions welcome)
+ - Built-in helpers for docker-compose v3.4 (or higher) configurations (there's "envsubst" and scriptrunner at this moment, suggestions welcome)
  - All of this via environment variables (`.env`) or docker-compose.yml settings.
-
-Possible ideas:
- - Run scripts within the container after it boots (optionally the first time only)
- - create aliases
  
 ### Ports, ports, ports!
 
@@ -192,6 +191,8 @@ For example: `COMPOSE_SHELL_TITLE="${COMPOSE_HOSTNAME: {CONTAINER}"`. The hostna
 This only works if you use compose file format v3.4 or later.
 This is the first version that allows for (ignored) vendor-specific root entries (`x-...`) 
 
+### Using helpers
+#### Single helper
 You can specify a single command to run:
 ```
 x-dchelper:
@@ -199,17 +200,45 @@ x-dchelper:
     configuration...
 ```
 
-Or a set of multiple:
+```
+x-dchelper:
+  command:
+    configuration...
+  command2:   
+    configuration...
+```
+
+#### Multiple helpers
+If you want to run the same helper multiple times, you can add some "junk" to create different keys:
 
 ```
 x-dchelper:
-  1:
-    command:
-      configuration...
-  2:
-    command   
-      configuration...
+  command.serviceone:
+    configuration...
+  command.servicetwo:   
+    configuration...
 ```
+What is behind the dot is discarded, so use whatever you want.
+
+#### Root
+
+You can specify `root` as the helper name and it will set the 'base path' for every relative **source/origin** directory on
+the local system:
+
+```
+x-dchelper:
+  root: /generic/docker/folder/
+  envsubst:
+    files:
+      - nginx.template:./.docker/nginx.conf
+```
+
+This will use the template from `/generic/docker/folder/nginx.template` and store it in the `.docker/nginx.conf` relative to where `docker-compose.yml` lives.
+
+#### Stages
+
+Currently the helpers can run at 2 stages: `pre.up` and `post.up`. (as in before and after the `docker-compose up` command).
+By specifying `at` in the configuration you can override this behavior. 
 
 ### EnvSubst
 
@@ -218,7 +247,7 @@ that takes care of this for you. DCHelper supports this natively and in a simple
 
 Note: This is internal functionality and does not require `envsubst` to be installed. 
 
-To generate a configuration file, you just add the `x-dchelper` root entry:
+To generate a configuration file, you just add an entry for `envsubst`:
 
 ```
 x-dchelper:
@@ -229,6 +258,8 @@ x-dchelper:
     files:
       - /generic/template/folder/nginx/site-fpm.conf:./.docker/site.conf
 ```
+
+By default it runs @ `pre.up` 
 
 #### environment
 
@@ -243,6 +274,19 @@ This allows you to create a number of templates and then generate a per-project 
 
 By using the multiple commands syntax you can run `envsubst` multiple times if you want different environments.
 
+By prepending the name of the output file with a service name the configuration will be created in the relevant container.
+This path **has to be absolute**. [`docker cp`](https://docs.docker.com/engine/reference/commandline/cp/) is used for this functionality.
+
+Example for the above:
+```
+ x-dchelper:
+   envsubst:
+     files:
+       - /generic/template/folder/aws/credentials.conf:aws-cli:/home/root/.aws/site.conf
+```
+
+`dchelper` will make sure the target folder gets created for you if needed and then copies the file into it.
+
 #### Result
 
 The `envsubst` helper runs before anything else, so the generated files are available in all your services:
@@ -253,3 +297,25 @@ The `envsubst` helper runs before anything else, so the generated files are avai
     volumes:
       - ./.docker/site.conf:/etc/nginx/conf.d/site.conf
 ``` 
+
+### ScriptRunner
+
+`scriptrunner` allows you to run shell scripts within the container. It doesn't really care if the script is mapped into the container or not, it just works around that.
+ 
+An example:
+
+```
+x-dchelper:
+  scriptrunner:
+    service: php
+    lock-file: /.scripts
+    once:
+      - /my/script/dir/php/install_pdo.sh
+      - /my/script/dir/php/install_xdebug.sh      
+```
+
+#### service
+What service/container to run against5
+
+#### lock-file
+For "once" command 

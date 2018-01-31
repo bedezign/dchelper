@@ -12,8 +12,7 @@ class ScriptRunner
     public function run($configuration, $stage = null)
     {
         // By default we only run in post.up, unless otherwise specified
-        $at = array_get($configuration, 'at', 'post.up');
-        if ($stage && $stage !== $at) {
+        if ($stage && $stage !== array_get($configuration, 'at', 'post.up')) {
             // Nothing to do
             return true;
         }
@@ -57,8 +56,8 @@ class ScriptRunner
             }
         }
 
-        // Put the script file back for next time:
         if ($executed) {
+            // Create the revised lock file in the container:
             file_put_contents($temp, implode(PHP_EOL, $alreadyRan));
             $docker->mustRun()->run("cp $temp $container:$lockFile");
         }

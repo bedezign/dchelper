@@ -8,7 +8,7 @@ class Shell extends Command
 {
     public function run(...$arguments): bool
     {
-        $service = $this->getContainer();
+        $service = $this->getService();
         $command = array_get(di('arguments'), 'shell-cmd', ($env = dcgetenv('COMPOSE_SHELL_CMD')) ? $env : 'bash -l');
         $title = $this->getTitle($service);
         $titleCMD = '';

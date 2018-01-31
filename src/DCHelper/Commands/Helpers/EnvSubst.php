@@ -10,7 +10,7 @@ class EnvSubst
 
     public function run($configuration, $stage = null)
     {
-        if ($stage && $stage !== 'pre.up') {
+        if ($stage && $stage !== array_get($configuration, 'at', 'pre.up')) {
             // If a stage was specified, we only run in pre.up
             return true;
         }
