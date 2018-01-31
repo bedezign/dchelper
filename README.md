@@ -318,4 +318,94 @@ x-dchelper:
 What service/container to run against5
 
 #### lock-file
-For "once" command 
+For "once" command
+
+## Full example
+
+Below is an example of a full `docker-compose.yml`:
+
+```
+version: '3.4'
+
+services:
+  php:
+    image: php:7-fpm
+    volumes:
+      - .:/project:rw
+    environment:
+      - XDEBUG_CONFIG=remote_enable=1 remote_mode=req remote_port=9000 remote_host=172.99.0.100 remote_connect_back=0
+      - PHP_IDE_CONFIG=serverName=docker-dev
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - .:/project:rw
+      - ./storage/app/docker/site.conf:/etc/nginx/conf.d/site.conf
+    ports:
+      - ${COMPOSE_ALIAS_IP}:80:80
+
+  db:
+    image: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ~/tmp/dev-data/myproject.test/mysql:/var/lib/mysql:rw
+    ports:
+      - ${COMPOSE_ALIAS_IP}:3306:3306
+
+x-dchelper:
+  root: ~/Steve/Development/Docker
+  envsubst:
+    environment:
+      - .env
+      - nginx
+    files:
+      - nginx/conf/site_php-fpm_php-9000.template:./storage/app/docker/site.conf
+  envsubst.aws:
+    at: post.up
+    files:
+      - aws/conf/credentials.template:php:/root/.aws/credentials 
+  scriptrunner:
+    service: php
+    lock-file: /.scripts
+    once:
+      - debian/scripts/install_aws-cli.sh
+      - debian/scripts/install_top.sh
+      - debian/scripts/install_ping.sh
+      - php/scripts/install_pdo_mysql.sh
+      - php/scripts/install_xdebug.sh
+      - php/scripts/laravel_artisan_xdebug.sh
+      - php/scripts/fpm_reload.sh
+``` 
+
+Extra things in my `.env`:
+
+```
+COMPOSE_ALIAS_IP=172.99.0.1
+COMPOSE_HOSTNAME=myproject.test
+COMPOSE_SHELL_TITLE="${COMPOSE_HOSTNAME}: {CONTAINER}"
+
+APP_URL=http://${COMPOSE_HOSTNAME}
+```
+
+So basically:
+This config will give you a working [http://myproject.test](http://myproject.test) that has a port `80` and `3306`. It runs on a 3 container structure, all using unmodified images from the docker hub.
+
+The `root` entry signifies that all relative **source** locations will be mapped in there. 
+The target locations do not use this root. `~` is translate for both target and source. 
+Note: if the `root` is also relative it will use the current working directory as its base.
+
+ 
+We use 2 `envsubst` commands here:
+The `nginx`-one creates a locally stored file based on the configuration at the `pre.up` stage. The resulting file is mounted into the `nginx` container so that it can be used when it boots.
+The `aws`-one will create a file directly in the container. Since that functionality only works *after* it the container up, we use `at: post.up`. 
+
+The `scriptrunner` command runs some of my reusable scripts to install things in the containers and it keeps track of what was installed within that container. 
+`once` indicates that these will only be ran once, if not found in the `lock-file` yet.
+Since these will be executed "passthrough", you'll see what is being done in your console without having to look in the container logs to see when things are wrapped up. 
+
+The `.env` file has an `APP_URL` that is already part of the laravel settings, but I added it to show that I just reuse the variables there as well. 
+The goal here is to have to modify as little as possible to setup a new project.

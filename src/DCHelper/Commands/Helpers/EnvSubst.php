@@ -72,6 +72,11 @@ class EnvSubst
             }
 
             $container = containerFromService($service);
+            if (!$container) {
+                error('envsubst: Creating files within a container is only possible when it is running. Use "at: post.up" in your configuration to trigger this after the up command.');
+                return false;
+            }
+
             $docker    = (new Docker())->passthru();
             $docker->run('exec ' . $container . ' mkdir -p ' . $toDir);
             $docker->run('cp ' . $temp . " $container:" . $to);
