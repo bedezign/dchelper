@@ -6,7 +6,7 @@ use DCHelper\Tools\External\Exec;
 
 class AliasIP extends Command
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $existingIPs = $this->determineAliases();
         foreach ($arguments as $ip) {
@@ -17,8 +17,6 @@ class AliasIP extends Command
                 ($command = new Exec())->run(di('sudo') . ' ' . di('ifconfig') . ' ' . di('lo') .  ' ' . $ip . ' alias');
             }
         }
-
-        return true;
     }
 
     public function determineAliases()

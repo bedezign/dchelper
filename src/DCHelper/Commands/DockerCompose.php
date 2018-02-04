@@ -21,11 +21,10 @@ class DockerCompose extends Command
         ];
     }
 
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $argument = array_shift($arguments);
-        ($command = new DockerComposeRunner())->passthru()->run($argument, assembleArguments($argument));
-        return $command->exit === 0;
+        (new DockerComposeRunner())->passthru()->run($argument, assembleArguments($argument));
     }
 
 }

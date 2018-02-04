@@ -6,7 +6,7 @@ use DCHelper\Tools\External\Exec;
 
 class Proxy extends DeProxy
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         di('env');
 
@@ -28,11 +28,9 @@ class Proxy extends DeProxy
                     // Even while the connection to the previous "version" might still be open
                     $arguments = " tcp4-listen:{$port['port']},reuseaddr,fork,bind=$proxyIP tcp4:127.0.0.1:{$port['remote_port']}";
                     (new Exec())->run(di('sudo') . ' ' . di('socat') . $arguments);
-
                 }
             }
         }
-        return true;
     }
 
     public function help(): array

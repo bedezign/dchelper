@@ -4,8 +4,8 @@ namespace DCHelper\Commands;
 
 class Down extends DockerCompose
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
-        return parent::run('down');
+        parent::run('down');
     }
 }

@@ -3,25 +3,25 @@
 namespace DCHelper\Commands;
 
 use DCHelper\Tools\External\Docker;
+use DCHelper\Tools\External\Exec;
 
 class Shell extends Command
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $service = $this->getService();
-        $command = array_get(di('arguments'), 'shell-cmd', ($env = dcgetenv('COMPOSE_SHELL_CMD')) ? $env : 'bash -l');
+        $command = array_get(di('arguments'), 'shell-cmd', ($env = dcgetenv('COMPOSE_SHELL_CMD')) ? $env :
+            '/bin/bash -c "export COLUMNS=`tput cols`; export LINES=`tput lines`; exec bash -l"');
         $title = $this->getTitle($service);
         $titleCMD = '';
         if ($title) {
-            $titleCMD = 'echo "\033]0;' . $title . '\007" && ';
+            $titleCMD = 'echo "\033]0;' . $title . '\007"; ';
         }
 
         $container = containerFromService($service);
         if ($container) {
             (new Docker())->passthru()->tty()->run('exec -ti ' . $container . ' ' . $command);
         }
-
-        return false;
     }
 
     public function help(): array

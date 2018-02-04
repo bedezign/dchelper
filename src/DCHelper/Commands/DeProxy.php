@@ -12,12 +12,12 @@ use DCHelper\Tools\External\Exec;
  */
 class DeProxy extends Command
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $proxiedIPs = $this->proxiedIPs();
         if (!count($proxiedIPs)) {
             // No proxiedIPs defined, nothing to do
-            return true;
+            return;
         }
 
         $processes = [];
@@ -48,8 +48,6 @@ class DeProxy extends Command
         else {
             debug('Nothing found...');
         }
-
-        return true;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace DCHelper\Commands\Helpers;
 
+use DCHelper\Exceptions\HelperFailedException;
 use DCHelper\Tools\External\Docker;
 
 class EnvSubst
@@ -50,8 +51,7 @@ class EnvSubst
         $toAbsolute   = absolute_path($toDir = dirname($to));
 
         if (!\is_readable($fromAbsolute)) {
-            error('envsubst: Source file "' . $from . '" does not exist/cannot be read from.');
-            return false;
+            throw new HelperFailedException('Source file "' . $from . '" does not exist/cannot be read from.');
         }
 
         // If we're still here then we can do the substitution and save the file
@@ -67,30 +67,30 @@ class EnvSubst
         if ($service) {
             $temp = tempnam(sys_get_temp_dir(), 'dchelper');
             if (!file_put_contents($temp, $content)) {
-                error('envsubst: Unable to create temporary file.');
-                return false;
+                throw new HelperFailedException('Unable to create temporary file.');
             }
 
             $container = containerFromService($service);
             if (!$container) {
-                error('envsubst: Creating files within a container is only possible when it is running. Use "at: post.up" in your configuration to trigger this after the up command.');
-                return false;
+                throw new HelperFailedException('Creating files within a container is only possible when it is running. Use "at: post.up" in your configuration to trigger this after the up command.');
             }
 
             $docker    = (new Docker())->passthru();
             $docker->run('exec ' . $container . ' mkdir -p ' . $toDir);
             $docker->run('cp ' . $temp . " $container:" . $to);
             unlink($temp);
-            return true;
+            return;
         }
 
         // https://github.com/kalessil/phpinspectionsea/blob/master/docs/probable-bugs.md#mkdir-race-condition
         !is_dir($toAbsolute) && !mkdir($toAbsolute, 0755, true);
         if (!is_dir($toAbsolute)) {
-            error('envsubst: Target directory "' . $toDir . '" does not exist and cannot be created. Please create it first.');
-            return false;
+            throw new HelperFailedException('Target directory "' . $toDir . '" does not exist and cannot be created. Please create it first.');
         }
-        return file_put_contents($toAbsolute . DIRECTORY_SEPARATOR . $fileName, $content);
+
+        if (!file_put_contents($toAbsolute . DIRECTORY_SEPARATOR . $fileName, $content)) {
+            throw new HelperFailedException('Unable to save the file');
+        }
     }
 
     /**

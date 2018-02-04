@@ -11,7 +11,7 @@ class Hosts extends Command
         return true;
     }
 
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         di('env');
 
@@ -24,13 +24,13 @@ class Hosts extends Command
             $lcHostname = strtolower($hostname);
             $found = false;
             foreach ($hosts as $line) {
-                $trimmed = ltrim($line);
-                if (substr($trimmed, 0, strlen($ip)) === $ip
-                    && strtolower(substr(trim(substr($trimmed, strlen($ip))), 0, strlen($lcHostname))) === $lcHostname) {
+                $parts = preg_split('/[\s#]+/', $line, -1, PREG_SPLIT_NO_EMPTY);
+                if ($parts[0] === $ip && strtolower(array_get($parts, 1, '')) === $lcHostname) {
                     $found = true;
                     break;
                 }
             }
+
             if (!$found) {
                 $hostFile = di('hosts');
                 info('Updating "' . $hostFile . '"...');
@@ -40,8 +40,6 @@ class Hosts extends Command
                 (new Exec())->run(di('sudo') . " tee '$hostFile' <<'EOF'" . PHP_EOL . implode('', $hosts) . PHP_EOL . 'EOF' . PHP_EOL);
             }
         }
-
-        return true;
     }
 
     public function help(): array

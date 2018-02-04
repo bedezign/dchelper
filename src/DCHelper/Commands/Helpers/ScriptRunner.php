@@ -3,7 +3,9 @@
 namespace DCHelper\Commands\Helpers;
 
 
+use DCHelper\Exceptions\HelperFailedException;
 use DCHelper\Tools\External\Docker;
+use DCHelper\Tools\External\Exec;
 
 class ScriptRunner
 {
@@ -17,68 +19,80 @@ class ScriptRunner
             return true;
         }
 
+        $service = array_get($configuration, 'service');
+        $isLocal = $service === 'localhost';
+        if (!$service) {
+            throw new HelperFailedException('Please specify a service to run against (localhost to run on this machine)');
+        }
+        $container = containerFromService($service);
+
         // Should scripts only be ran once?
-        $once     = array_get($configuration, 'once', true);
+        $once     = array_get($configuration, 'once');
         $lockFile = array_get($configuration, 'lock-file');
+        if ($once && $isLocal) {
+            throw new HelperFailedException('"once" is not supported on localhost at this moment.');
+        }
+
         if ($once && !$lockFile) {
-            error('scriptrunner: To keep track of the scripts that already ran, please specify the "lock-file" option');
-            return false;
+            throw new HelperFailedException('To keep track of the scripts that already ran, please specify the "lock-file" option');
         }
 
         $root = array_get($configuration, 'root', '');
 
-        $service = array_get($configuration, 'service');
-        if (!$service) {
-            error('scriptrunner: Please specify a service to run against');
-            return false;
-        }
-        $container = containerFromService($service);
-
-        // Obtain the script lock file first
-        $temp = tempnam(sys_get_temp_dir(), 'dchelper');
-        $alreadyRan = [];
-        $docker = (new Docker())->mustRun(false);
-        $docker->run("cp $container:$lockFile $temp");
-        if ($docker->exit === 0) {
-            $alreadyRan = array_map('trim', file($temp));
-        }
-
-        $once = !is_array($once) ? [$once] : $once;
-        $executed = 0;
-        foreach ($once as $script) {
-            if (!in_array($script, $alreadyRan)) {
-                info('scriptrunner: Executing "' . $script . '" in "' . $service . '".');
-                if (!$this->runScript($container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script)) {
-                    return false;
-                }
-                $alreadyRan[] = $script;
-                $executed ++;
+        if ($once) {
+            // Obtain the script lock file first
+            $temp       = tempnam(sys_get_temp_dir(), 'dchelper');
+            $alreadyRan = [];
+            $docker     = (new Docker())->mustRun(false);
+            $docker->run("cp $container:$lockFile $temp");
+            if ($docker->exit === 0) {
+                $alreadyRan = array_map('trim', file($temp));
             }
+
+            $once     = !is_array($once) ? [$once] : $once;
+            $executed = 0;
+            foreach ($once as $script) {
+                if (!in_array($script, $alreadyRan)) {
+                    $this->runScript($service, $container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script);
+                    $alreadyRan[] = $script;
+                    $executed ++;
+                }
+            }
+
+            if ($executed && $service) {
+                // Create the revised lock file in the container:
+                file_put_contents($temp, implode(PHP_EOL, $alreadyRan));
+                $docker->mustRun()->run("cp $temp $container:$lockFile");
+            }
+            @unlink($temp);
         }
 
-        if ($executed) {
-            // Create the revised lock file in the container:
-            file_put_contents($temp, implode(PHP_EOL, $alreadyRan));
-            $docker->mustRun()->run("cp $temp $container:$lockFile");
-        }
-        @unlink($temp);
 
-        return true;
+        $direct = array_get($configuration, 'direct', false);
+        $always = array_get($configuration, 'always', []);
+        $always = !is_array($always) ? [$always] : $always;
+        foreach ($always as $script) {
+            $this->runScript($service, $container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script, $direct);
+        }
     }
 
-    private function runScript($container, $script)
+    private function runScript($service, $container, $script, $direct = false)
     {
+        info('scriptrunner: Executing "' . $script . '" in "' . $service . '".');
         if (!is_readable($script)) {
-            error('scriptrunner: Script "' . $script . '" could not be read.');
-            return false;
+            throw new HelperFailedException('Script "' . $script . '" could not be read.');
         }
-        $contents  = file_get_contents($script);
+        $content = file_get_contents($script);
+        $command = '/bin/sh <<\EOB' . PHP_EOL . $content . PHP_EOL . 'EOB' . PHP_EOL;
 
-        // We run the script as a heredoc in the container so that we don't need to figure out whether the script
-        // is available within the container or not. This approach works for both
-        // Note: Because of "docker-compose exec" woes with stdin (https://github.com/docker/compose/issues/3352), use docker instead
-        (new Docker())->passthru()->run('exec -i ' . $container . ' /bin/sh <<\EOB' . PHP_EOL . $contents . PHP_EOL . 'EOB' . PHP_EOL);
-        return true;
+        if ($service !== 'localhost') {
+            // We run the script as a heredoc in the container so that we don't need to figure out whether the script
+            // is available within the container or not. This approach works for both
+            // Note: Because of "docker-compose exec" woes with stdin (https://github.com/docker/compose/issues/3352), use docker instead
+            (new Docker())->passthru()->run('exec -i ' . $container . ' ' . $command);
+        } else {
+            (new Exec())->passthru()->run($direct ? $content : $command);
+        }
     }
 
 }

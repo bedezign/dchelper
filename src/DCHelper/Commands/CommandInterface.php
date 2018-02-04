@@ -11,5 +11,5 @@ interface CommandInterface
 
     public function shouldRun(...$arguments) : bool;
 
-    public function run(...$arguments) : bool;
+    public function run(...$arguments);
 }

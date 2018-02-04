@@ -41,7 +41,7 @@ In short:
  - Get rid of having to specify ports
  - Automatically create/maintain a hostname for your project. Use [myproject.test](myproject.test) in your browser instead of an IP!
  - Easily "shell" into a container (`docker-compose shell` and you have a login-shell into the default container).
- - Built-in helpers for docker-compose v3.4 (or higher) configurations (there's "envsubst" and scriptrunner at this moment, suggestions welcome)
+ - Built-in helpers for docker-compose v3.4 (or higher) configurations (there's "envsubst" and "scriptrunner" at this moment, suggestions welcome)
  - All of this via environment variables (`.env`) or docker-compose.yml settings.
  
 ### Ports, ports, ports!
@@ -176,7 +176,10 @@ There is currently no support for a per service/container host, just the global 
 ## Shell
 
 DCHelper adds a `shell`-command. By doing `dchelper shell php` for example, it will trigger a (login) shell for in the related container.
-This actually runs `docker exec -it <container> bash -l` in the background, but it will allow you to specify the compose service name instead of having to figure out the docker container name.
+This actually runs `docker exec -it <container> <command>` in the background, but it will allow you to specify the compose service name instead of having to figure out the docker container name.
+
+
+Due to [this](https://github.com/moby/moby/issues/33794) and [this](https://github.com/moby/moby/issues/10341) (issues with the pseudo terminal size not being set correctly) the default command currently executed is actually ``'/bin/bash -c "export COLUMNS=`tput cols`; export LINES=`tput lines`; exec bash -l"'``.
 
 By using `COMPOSE_SHELL_DEFAULT=service-name` in your environment you can indicate what service to use if none was specified.
 This can also be done by adding `SHELL_DEFAULT=1` to one of your service environment definitions.
@@ -234,18 +237,21 @@ x-dchelper:
 ```
 
 This will use the template from `/generic/docker/folder/nginx.template` and store it in the `.docker/nginx.conf` relative to where `docker-compose.yml` lives.
+It will also translate `~`-entries for you, in the source, target and root directives.
 
 #### Stages
 
-Currently the helpers can run at 2 stages: `pre.up` and `post.up`. (as in before and after the `docker-compose up` command).
-By specifying `at` in the configuration you can override this behavior. 
+Currently the helpers can run at 2 stages: `pre.<command>` and `post.<command>`. (as in: before and after the `docker-compose up` command).
+By specifying `at` in the configuration you can override this behavior.
+`post.up` can only run after the `up` command completes, so if you do not detach it will only run after you terminate the containers.
+Other possibilities are for example `pre.shell` etc. 
 
 ### EnvSubst
 
 If your compose project needs configuration files with values based on your environment, the trick so far was splice in an `envsubst` call somewhere
 that takes care of this for you. DCHelper supports this natively and in a simple manner.
 
-Note: This is internal functionality and does not require `envsubst` to be installed. 
+Note: This is internal functionality. You don't need to install the `envsubst` command for this to work. 
 
 To generate a configuration file, you just add an entry for `envsubst`:
 
@@ -259,12 +265,16 @@ x-dchelper:
       - /generic/template/folder/nginx/site-fpm.conf:./.docker/site.conf
 ```
 
-By default it runs @ `pre.up` 
+This runs @ `pre.up` by default. 
 
 #### environment
 
-What environments to use. The default (if not specified) is everything from `.env`.
-In the example it will use everything from `.env` and all environment from the *nginx* service.
+What environment(s) to use. The default (if not specified) is everything from `.env`.
+
+In the example it will use everything from `.env` with the environment from the *nginx* service added on top.
+
+The helper is written in a way that it will *only* replace whatever variables are known in the environment. 
+It will not touch anything else. So `proxy_set_header Host $http_host;` will be safe, as long as you don't have a `http_host` defined.
 
 #### files
 
@@ -301,6 +311,8 @@ The `envsubst` helper runs before anything else, so the generated files are avai
 ### ScriptRunner
 
 `scriptrunner` allows you to run shell scripts within the container. It doesn't really care if the script is mapped into the container or not, it just works around that.
+This runs @ `post.up` by default if nothing was specified. 
+
  
 An example:
 
@@ -315,7 +327,7 @@ x-dchelper:
 ```
 
 #### service
-What service/container to run against5
+What service/container to run against. If you want to run the script on the host itself, use "localhost".
 
 #### lock-file
 For "once" command
@@ -395,17 +407,20 @@ So basically:
 This config will give you a working [http://myproject.test](http://myproject.test) that has a port `80` and `3306`. It runs on a 3 container structure, all using unmodified images from the docker hub.
 
 The `root` entry signifies that all relative **source** locations will be mapped in there. 
-The target locations do not use this root. `~` is translate for both target and source. 
-Note: if the `root` is also relative it will use the current working directory as its base.
+The target locations do not use this. `~` is translated for both target and source. 
+Note: if the `root` is also relative it will use the current working directory as its base (or home if `~` is used).
+It can be overwritten locally in a helper configuration.
 
  
 We use 2 `envsubst` commands here:
 The `nginx`-one creates a locally stored file based on the configuration at the `pre.up` stage. The resulting file is mounted into the `nginx` container so that it can be used when it boots.
-The `aws`-one will create a file directly in the container. Since that functionality only works *after* it the container up, we use `at: post.up`. 
+The `aws`-one will create a file directly in the container. Since that functionality only works *after* the container is up, we use `at: post.up` in the configuration. 
 
 The `scriptrunner` command runs some of my reusable scripts to install things in the containers and it keeps track of what was installed within that container. 
-`once` indicates that these will only be ran once, if not found in the `lock-file` yet.
-Since these will be executed "passthrough", you'll see what is being done in your console without having to look in the container logs to see when things are wrapped up. 
+`once` indicates that these will only be ran once, if not found in the `lock-file` yet. 
+(`always` is on the planning) 
 
-The `.env` file has an `APP_URL` that is already part of the laravel settings, but I added it to show that I just reuse the variables there as well. 
+Since these will be executed "passthrough", you'll see what is being done in your console without having to look in the container logs to see when things are wrapped up. (which is something that annoyed me personally when using an alternate entry script that installs things). 
+
+The `.env` file has an `APP_URL` that is added to show that you can reuse the variables there as well. 
 The goal here is to have to modify as little as possible to setup a new project.

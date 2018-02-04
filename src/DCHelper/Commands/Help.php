@@ -8,7 +8,7 @@ class Help extends Command
 {
     const PREFIX = '[dch] ';
 
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $help = $this->collectHelpData();
         if (\count($arguments)) {
@@ -18,18 +18,16 @@ class Help extends Command
                 if (array_get($item, 'command') === $command) {
                     // One of ours, print help for that.
                     $this->outputInternalCommandHelp($item);
-                    return true;
+                    return;
                 }
             }
 
             // Still here, just pass on to docker-compose
             (new DockerCompose())->passthru()->run('help ' . $command);
-            return true;
         } else {
             // Global help requested, modify the help page itself
             $this->outputGlobalHelp($help);
         }
-        return true;
     }
 
     private function collectHelpData()

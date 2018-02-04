@@ -4,8 +4,8 @@ namespace DCHelper\Commands;
 
 class Start extends DockerCompose
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
-        return parent::run('start');
+        parent::run('start');
     }
 }

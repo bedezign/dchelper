@@ -31,7 +31,8 @@
       "DCHelper\\": "src/DCHelper"
     },
     "files": [
-      "src/DCHelper/Tools/helpers.php"
+      "src/DCHelper/Tools/helpers.php",
+      "src/DCHelper/Tools/di.php"
     ]
   },
   "bin": [

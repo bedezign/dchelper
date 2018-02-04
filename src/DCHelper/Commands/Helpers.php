@@ -2,6 +2,9 @@
 
 namespace DCHelper\Commands;
 
+use DCHelper\Exceptions\CommandFailedException;
+use DCHelper\Exceptions\HelperFailedException;
+
 class Helpers extends Command
 {
     private static $helpers = [
@@ -9,13 +12,13 @@ class Helpers extends Command
         'scriptrunner' => Helpers\ScriptRunner::class,
     ];
 
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         // See if anything was defined that should be ran through the helpers
         $helpers = di('compose-config-raw')->get('x-dchelper');
         if (!$helpers) {
             // Nothing to do
-            return true;
+            return;
         }
 
         $root = null;
@@ -25,15 +28,15 @@ class Helpers extends Command
                 $root = $configuration;
             }
             else {
-                // root override if needed
-                $configuration['root'] = array_get($configuration, 'root', $root);
-                if (!$this->triggerHelper($helper, $configuration, $arguments)) {
-                    return false;
+                try {
+                    // root override if needed
+                    $configuration['root'] = array_get($configuration, 'root', $root);
+                    $this->triggerHelper($helper, $configuration, $arguments);
+                } catch (HelperFailedException $e) {
+                    throw new CommandFailedException('Failed to run helper ' . $helper . ': ' . $e->getMessage(), 0, $e);
                 }
             }
         }
-
-        return true;
     }
 
     private function triggerHelper($command, $config, array $stages = [])
@@ -47,10 +50,7 @@ class Helpers extends Command
         $class  = self::$helpers[$lcCommand];
         $helper = new $class();
         foreach ($stages as $stage) {
-            if (!$helper->run($config, $stage)) {
-                return false;
-            }
+            $helper->run($config, $stage);
         }
-        return true;
     }
 }

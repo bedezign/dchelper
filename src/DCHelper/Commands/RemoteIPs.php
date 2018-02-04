@@ -12,7 +12,7 @@ namespace DCHelper\Commands;
  */
 class RemoteIPs extends Command
 {
-    public function run(...$arguments): bool
+    public function run(...$arguments)
     {
         $remoteIPs = [];
 
@@ -36,7 +36,7 @@ class RemoteIPs extends Command
             debug('Found: ' . implode(', ', $remoteIPs));
         }
 
-        return (new AliasIP())->run(...$remoteIPs);
+        (new AliasIP())->run(...$remoteIPs);
     }
 
     public function help(): array
