@@ -25,7 +25,7 @@ class Hosts extends Command
             $found = false;
             foreach ($hosts as $line) {
                 $parts = preg_split('/[\s#]+/', $line, -1, PREG_SPLIT_NO_EMPTY);
-                if ($parts[0] === $ip && strtolower(array_get($parts, 1, '')) === $lcHostname) {
+                if (count($parts) >= 2 && $parts[0] === $ip && strtolower(array_get($parts, 1, '')) === $lcHostname) {
                     $found = true;
                     break;
                 }

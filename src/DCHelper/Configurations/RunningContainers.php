@@ -20,12 +20,17 @@ class RunningContainers extends Base
             $containers = [];
             foreach ($lines as $container) {
                 list($name, $command, $status, $ports) = preg_split("/\s{3,}/", $container);
-                $portTexts = explode(',', $ports);
+                if ($ports) {
+                    $portTexts = explode(',', $ports);
 
-                $ports = [];
-                foreach ($portTexts as $port) {
-                    $port                 = $this->parsePortBinding($port);
-                    $ports[$port['name']] = $port;
+                    $ports = [];
+                    foreach ($portTexts as $port) {
+                        $port                 = $this->parsePortBinding($port);
+                        $ports[$port['name']] = $port;
+                    }
+                }
+                else {
+                    $ports = [];
                 }
 
                 $containers[$name] = [
@@ -42,6 +47,10 @@ class RunningContainers extends Base
 
     private function parsePortBinding($bind)
     {
+        if (!$bind) {
+            return [];
+        }
+
         // We can have either a remote + container specification or just a container specification
         // 9000/tcp, 0.0.0.0:32771->80/tcp, 0.0.0.0:32770->443/tcp
         $parts    = explode('->', trim($bind));

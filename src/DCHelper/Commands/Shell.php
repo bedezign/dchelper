@@ -3,7 +3,6 @@
 namespace DCHelper\Commands;
 
 use DCHelper\Tools\External\Docker;
-use DCHelper\Tools\External\Exec;
 
 class Shell extends Command
 {
