@@ -30,6 +30,17 @@ class EnvSubst
         return true;
     }
 
+    public function forString($string, $configuration = [])
+    {
+        $environment  = $this->assembleEnvironment($configuration);
+        $replacements = $this->buildReplacements($environment);
+        foreach ($replacements as $function => $parameters) {
+            $parameters[] = $string;
+            $string      = $function(...$parameters);
+        }
+        return $string;
+    }
+
     /**
      * @param string $fileSpec
      * @param array  $replacements

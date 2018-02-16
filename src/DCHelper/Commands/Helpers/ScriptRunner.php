@@ -37,7 +37,16 @@ class ScriptRunner
             throw new HelperFailedException('To keep track of the scripts that already ran, please specify the "lock-file" option');
         }
 
-        $root = array_get($configuration, 'root', '');
+        $envSubst = function($string) { return $string; };
+        $dollarSigns = 0;
+        array_walk_recursive($configuration, function($value) use (&$dollarSigns) { $dollarSigns += (is_string($value) && strpos($value, '$') !== false) ? 1 : 0; });
+        if ($dollarSigns) {
+            $envSubst = function($string) use ($configuration) {
+                return (new EnvSubst())->forString($string, $configuration);
+            };
+        }
+
+        $root = array_get($configuration, 'root') ?? getcwd();
 
         if ($once) {
             // Obtain the script lock file first
@@ -52,6 +61,7 @@ class ScriptRunner
             $once     = !is_array($once) ? [$once] : $once;
             $executed = 0;
             foreach ($once as $script) {
+                $script = $envSubst($script);
                 if (!in_array($script, $alreadyRan)) {
                     $this->runScript($service, $container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script);
                     $alreadyRan[] = $script;
@@ -72,6 +82,7 @@ class ScriptRunner
         $always = array_get($configuration, 'always', []);
         $always = !is_array($always) ? [$always] : $always;
         foreach ($always as $script) {
+            $script = $envSubst($script);
             $this->runScript($service, $container, $script[0] !== DIRECTORY_SEPARATOR ? absolute_path($script, $root) : $script, $direct);
         }
     }

@@ -239,6 +239,20 @@ x-dchelper:
 This will use the template from `/generic/docker/folder/nginx.template` and store it in the `.docker/nginx.conf` relative to where `docker-compose.yml` lives.
 It will also translate `~`-entries for you, in the source, target and root directives.
 
+If you have a global `root` set and want it back to the project directory for a specific section, just set it to empty in that section:
+
+
+```
+x-dchelper:
+  root: /generic/docker/folder/
+  scriptrunner:
+    root:
+    files:
+      - ./script.sh
+```
+ 
+`script.sh` will be loaded from working directory rather than the `/generic/docker/folder` 
+
 #### Stages
 
 Currently the helpers can run at 2 stages: `pre.<command>` and `post.<command>`. (as in: before and after the `docker-compose up` command).
@@ -313,7 +327,6 @@ The `envsubst` helper runs before anything else, so the generated files are avai
 `scriptrunner` allows you to run shell scripts within the container. It doesn't really care if the script is mapped into the container or not, it just works around that.
 This runs @ `post.up` by default if nothing was specified. 
 
- 
 An example:
 
 ```
@@ -325,6 +338,9 @@ x-dchelper:
       - /my/script/dir/php/install_pdo.sh
       - /my/script/dir/php/install_xdebug.sh      
 ```
+
+`scriptrunner` supports `EnvSubst` in the command lines since (eg `${SCRIPT_FOLDER}/script.sh` will work) the last revision. Substituting in the scripts' content is not supported currently, but DM me if needed.
+As with `EnvSubst` you can specify an `environment`-key.
 
 #### service
 What service/container to run against. If you want to run the script on the host itself, use "localhost".
