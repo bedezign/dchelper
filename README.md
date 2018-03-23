@@ -265,15 +265,21 @@ Other possibilities are for example `pre.shell` etc.
 If your compose project needs configuration files with values based on your environment, the trick so far was splice in an `envsubst` call somewhere
 that takes care of this for you. DCHelper supports this natively and in a simple manner.
 
-Note: This is internal functionality. You don't need to install the `envsubst` command for this to work. 
+Important: 
+The helper is written in a way that it will *only* replace whatever variables are known in the environment.
+This will not touch anything except that. 
+So `proxy_set_header Host $http_host;` will be safe, as long as you don't have a `http_host` defined.
+
+Note that this is internal functionality. You don't need to install the `envsubst` command for this to work. 
 
 To generate a configuration file, you just add an entry for `envsubst`:
 
 ```
 x-dchelper:
   envsubst:
-    environment:
+    environment-file:
       - .env
+    environment:
       - nginx
     files:
       - /generic/template/folder/nginx/site-fpm.conf:./.docker/site.conf
@@ -281,14 +287,15 @@ x-dchelper:
 
 This runs @ `pre.up` by default. 
 
+#### environment-file
+
+Which files to load as environment files. The default (if not specified) `.env` in the working directory.
+
 #### environment
 
-What environment(s) to use. The default (if not specified) is everything from `.env`.
+The docker-container environments to load. 
 
-In the example it will use everything from `.env` with the environment from the *nginx* service added on top.
-
-The helper is written in a way that it will *only* replace whatever variables are known in the environment. 
-It will not touch anything else. So `proxy_set_header Host $http_host;` will be safe, as long as you don't have a `http_host` defined.
+In the example it will use the `.env` file with the environment from the *nginx* service added on top.
 
 #### files
 
@@ -324,7 +331,9 @@ The `envsubst` helper runs before anything else, so the generated files are avai
 
 ### ScriptRunner
 
-`scriptrunner` allows you to run shell scripts within the container. It doesn't really care if the script is mapped into the container or not, it just works around that.
+`scriptrunner` allows you to run shell scripts within the container. 
+It doesn't matter if the script is mapped into the container or not, it executes it as a set of bash commands.
+
 This runs @ `post.up` by default if nothing was specified. 
 
 An example:
@@ -333,20 +342,32 @@ An example:
 x-dchelper:
   scriptrunner:
     service: php
-    lock-file: /.scripts
     once:
       - /my/script/dir/php/install_pdo.sh
       - /my/script/dir/php/install_xdebug.sh      
 ```
 
-`scriptrunner` supports `EnvSubst` in the command lines since (eg `${SCRIPT_FOLDER}/script.sh` will work) the last revision. Substituting in the scripts' content is not supported currently, but DM me if needed.
-As with `EnvSubst` you can specify an `environment`-key.
+Note that `scriptrunner` supports `EnvSubst`.
+
+The functionality works both for the command lines (always enabled), so `${SCRIPT_FOLDER}/script.sh` will work).
+Substituting in the scripts' content also enabled by default, but can be turned of by specifying `envsubst: false`.
+As with `EnvSubst` you can specify the `environment-file` and `environment`-key as well for more configuration.
 
 #### service
-What service/container to run against. If you want to run the script on the host itself, use "localhost".
+What service/container to run against. If you want to run the script on the host itself, use `localhost`.
+The `once` behavior is currently not supported for scripts running on `localhost`, only for containers.
 
 #### lock-file
-For "once" command
+This file is added to the container and used to remember which scripts already ran. Used by the "once" command.
+If not specified it will default to `/.dchelper.scripts`
+
+#### once vs always
+You can specify scripts under either `once` or `always`. I think the difference is self-explanatory.
+
+#### direct
+For scripts running on `localhost` (with `always`) you can specify `direct: true`. This forces dchelper to run the shell script 
+as opposed to loading its content and executing that. Please note that envsubst on the file content will not work like this.
+Since it is running on `localhost` you can always just source the `.env` file on those scripts. 
 
 ## Full example
 
@@ -388,7 +409,6 @@ x-dchelper:
   root: ~/Steve/Development/Docker
   envsubst:
     environment:
-      - .env
       - nginx
     files:
       - nginx/conf/site_php-fpm_php-9000.template:./storage/app/docker/site.conf
@@ -398,7 +418,6 @@ x-dchelper:
       - aws/conf/credentials.template:php:/root/.aws/credentials 
   scriptrunner:
     service: php
-    lock-file: /.scripts
     once:
       - debian/scripts/install_aws-cli.sh
       - debian/scripts/install_top.sh
@@ -409,34 +428,35 @@ x-dchelper:
       - php/scripts/fpm_reload.sh
 ``` 
 
-Extra things in my `.env`:
-
+Part of `.env`:
 ```
 COMPOSE_ALIAS_IP=172.99.0.1
 COMPOSE_HOSTNAME=myproject.test
 COMPOSE_SHELL_TITLE="${COMPOSE_HOSTNAME}: {CONTAINER}"
 
-APP_URL=http://${COMPOSE_HOSTNAME}
+APP_URL=https://${COMPOSE_HOSTNAME}
 ```
 
-So basically:
+What this does:
 This config will give you a working [http://myproject.test](http://myproject.test) that has a port `80` and `3306`. It runs on a 3 container structure, all using unmodified images from the docker hub.
 
-The `root` entry signifies that all relative **source** locations will be mapped in there. 
-The target locations do not use this. `~` is translated for both target and source. 
+The `root` entry signifies that all relative **source** locations will be mapped in there, the target locations do not use this.  
+`~` is translated for both target and source.
+ 
 Note: if the `root` is also relative it will use the current working directory as its base (or home if `~` is used).
 It can be overwritten locally in a helper configuration.
-
  
 We use 2 `envsubst` commands here:
-The `nginx`-one creates a locally stored file based on the configuration at the `pre.up` stage. The resulting file is mounted into the `nginx` container so that it can be used when it boots.
-The `aws`-one will create a file directly in the container. Since that functionality only works *after* the container is up, we use `at: post.up` in the configuration. 
 
-The `scriptrunner` command runs some of my reusable scripts to install things in the containers and it keeps track of what was installed within that container. 
+* The `nginx`-one creates a locally stored file based on the configuration at the `pre.up` stage. The resulting file is mounted into the `nginx` container so that it can be used when it boots.
+* The `aws`-one will create a file directly in the container. Since that functionality only works *after* the container is up, we use `at: post.up` in the configuration.
+
+This also shows that you can use multiple envsubst entries just by appending something random (preferably something that makes sense to you ;) ).
+  
+The `scriptrunner` command runs [some of my utility scripts](https://github.com/bedezign/docker-utility-scripts) to install things in the containers and it keeps track of what was installed within that container. 
 `once` indicates that these will only be ran once, if not found in the `lock-file` yet. 
-(`always` is on the planning) 
 
 Since these will be executed "passthrough", you'll see what is being done in your console without having to look in the container logs to see when things are wrapped up. (which is something that annoyed me personally when using an alternate entry script that installs things). 
 
-The `.env` file has an `APP_URL` that is added to show that you can reuse the variables there as well. 
+The `APP_URL` in the example was added to show that you can reuse the variables there as well. 
 The goal here is to have to modify as little as possible to setup a new project.

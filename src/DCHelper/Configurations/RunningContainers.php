@@ -19,7 +19,7 @@ class RunningContainers extends Base
 
             $containers = [];
             foreach ($lines as $container) {
-                list($name, $command, $status, $ports) = preg_split("/\s{3,}/", $container);
+                list($name, $command, $status, $ports) = array_pad(preg_split("/\s{3,}/", trim($container)), 4, null);
                 if ($ports) {
                     $portTexts = explode(',', $ports);
 
